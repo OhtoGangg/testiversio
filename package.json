@@ -7,7 +7,7 @@
   "server": "node server.js"
 },
   "dependencies": {
-    "discord.js": "^14.0.0",
+    "discord.js": "^14.15.3",
     "axios": "^1.4.0"
   }
 }
