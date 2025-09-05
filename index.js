@@ -86,12 +86,19 @@ client.once('ready', async () => {
                         }
                     });
 
-                    const isLive = response.data.data.length > 0;
+                    const streamData = response.data.data[0];
+                    const title = streamData ? streamData.title : '';
+                    const category = streamData ? streamData.game_name : '';
+
+                    const isRSRP = title.includes('#RSRP') || title.includes('RSRP');
+                    const isGTA = category === 'GTA V';
+
+                    const isLive = streamData !== undefined && Object.keys(streamData).length > 0;
                     const memberId = member.id;
                     const currentlyLive = userData[memberId]._isLive || false;
 
-                    // Jos menee liveen
-                    if (isLive && !currentlyLive) {
+                    // Tarkistetaan ehdot ennen ilmoituksen lähettämistä
+                    if (isLive && !currentlyLive && isRSRP && isGTA) {
                         const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
                         const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
 
@@ -103,10 +110,10 @@ client.once('ready', async () => {
                         userData[memberId]._liveMessageId = message.id;
                         saveData();
                     }
-                    // Jos lopettaa striimin
-                    else if (!isLive && currentlyLive) {
+                    // Jos lopettaa striimin tai ehdot eivät täyty, poista viesti ja rooli
+                    else if ((!isLive || !isRSRP || !isGTA) && currentlyLive) {
                         const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
-                        const messageId = userData[memberId]._liveMessageId;
+                        const messageId = userData[member.id]._liveMessageId;
                         if (messageId) {
                             try {
                                 const msg = await channel.messages.fetch(messageId);
@@ -115,12 +122,9 @@ client.once('ready', async () => {
                                 console.log('Viestin poisto epäonnistui:', err);
                             }
                         }
-                        // Poista "LIVESSÄ" rooli
                         await member.roles.remove(LIVESSA_ROLE_ID);
-
-                        // Päivitä data
-                        userData[memberId]._isLive = false;
-                        userData[memberId]._liveMessageId = null;
+                        userData[member.id]._isLive = false;
+                        userData[member.id]._liveMessageId = null;
                         saveData();
                     }
                 } catch (err) {
