@@ -12,10 +12,6 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
 // Discord.js ja muu koodi
 const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
