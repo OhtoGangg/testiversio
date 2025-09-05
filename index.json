@@ -6,25 +6,30 @@ const TOKEN = process.env.DISCORD_TOKEN; // Discord-botin token
 const GUILD_ID = process.env.GUILD_ID; // Discord palvelimen ID
 const LIVESSA_ROLE_ID = process.env.LIVESSA_ROLE_ID; // Rooli, jonka lisäät/laitat pois
 const MAINOSTUS_CHANNEL_ID = process.env.MAINOSTUS_CHANNEL_ID; // Viestikanavan ID missä ilmoitukset näkyvät
-const YOUR_STRIIMAAJA_ROLE_ID = process.env.STRIIMAAJA_ROLE_ID;
+const STRIIMAAJA_ROLE_ID = process.env.STRIIMAAJA_ROLE_ID; // Striimaajan rooli
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID; // Twitch API Client ID
 const TWITCH_ACCESS_TOKEN = process.env.TWITCH_ACCESS_TOKEN; // Twitch API Access Token
 
 const dataFilePath = './data.json';
 let userData = {};
 
-try {
-    const rawData = fs.readFileSync(dataFilePath, 'utf8');
-    userData = JSON.parse(rawData);
-} catch (err) {
-    console.log('Ei voitu lukea data.json-tiedostoa, luodaan uusi.');
-    userData = {};
+// Funktiot datan lataamiseen ja tallentamiseen
+function loadData() {
+    try {
+        const rawData = fs.readFileSync(dataFilePath, 'utf8');
+        userData = JSON.parse(rawData);
+    } catch (err) {
+        console.log('Ei voitu lukea data.json-tiedostoa, luodaan uusi.');
+        userData = {};
+    }
 }
 
-// Tallennusfunktio
 function saveData() {
     fs.writeFileSync(dataFilePath, JSON.stringify(userData, null, 2));
 }
+
+// Ladataan data heti käynnistyksen yhteydessä
+loadData();
 
 // Discord-asiakas
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates] });
@@ -40,7 +45,17 @@ client.once('ready', async () => {
         for (const member of members.values()) {
             // Tarkistetaan, onko jäsenellä "Striimaaja" rooli
             if (member.roles.cache.has(STRIIMAAJA_ROLE_ID)) {
-                const twitchUsername = member.displayName; // Oletetaan, että Twitch-käyttäjänimi on nimi
+                // Tarkistetaan, onko tallennettu Twitch-käyttäjänimi
+                if (!userData[member.id]) {
+                    userData[member.id] = {
+                        twitchName: member.displayName, // Voit muuttaa, jos sinulla on erillinen Twitch-nimi
+                        _isLive: false,
+                        _liveMessageId: null
+                    };
+                }
+
+                const twitchUsername = userData[member.id].twitchName;
+
                 try {
                     const response = await axios.get('https://api.twitch.tv/helix/streams', {
                         headers: {
@@ -53,10 +68,6 @@ client.once('ready', async () => {
                     });
                     const isLive = response.data.data.length > 0;
                     const memberId = member.id;
-
-                    if (!userData[memberId]) {
-                        userData[memberId] = {};
-                    }
 
                     const currentlyLive = userData[memberId]._isLive || false;
 
