@@ -2,13 +2,13 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 
-const TOKEN = 'MTQxMzA2MTE2ODk3Njc2MDg0Ng.G_hu9I.qmF8iWsoB6hcvwplznbCGTDOPzftxMUBsFalAM'; // Discord-botin token
-const GUILD_ID = '1413060079611154595'; // Discord palvelimen ID
-const LIVESSA_ROLE_ID = '1413060382947278918'; // Rooli, jonka lisäät/laitat pois
-const MAINOSTUS_CHANNEL_ID = '1413060218300006420'; // Viestikanavan ID missä ilmoitukset näkyvät
-const YOUR_STRIIMAAJA_ROLE_ID = '1413060344972316724';
-const TWITCH_CLIENT_ID = 'nbrj1v8b1mwh963aswrw24lj6x33v9'; // Twitch API Client ID
-const TWITCH_ACCESS_TOKEN = 'vh64wcuewy9be1w5t1eg3zshxs1itq'; // Twitch API Access Token
+const TOKEN = process.env.DISCORD_TOKEN; // Discord-botin token
+const GUILD_ID = process.env.GUILD_ID; // Discord palvelimen ID
+const LIVESSA_ROLE_ID = process.env.LIVESSA_ROLE_ID; // Rooli, jonka lisäät/laitat pois
+const MAINOSTUS_CHANNEL_ID = process.env.MAINOSTUS_CHANNEL_ID; // Viestikanavan ID missä ilmoitukset näkyvät
+const YOUR_STRIIMAAJA_ROLE_ID = process.env.STRIIMAAJA_ROLE_ID;
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID; // Twitch API Client ID
+const TWITCH_ACCESS_TOKEN = process.env.TWITCH_ACCESS_TOKEN; // Twitch API Access Token
 
 const dataFilePath = './data.json';
 let userData = {};
