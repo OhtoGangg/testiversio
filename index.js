@@ -31,21 +31,25 @@ function saveData() {
 // Ladataan data heti käynnistyksen yhteydessä
 loadData();
 
-// Discord-asiakas
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates] });
+const client = new Client({ intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates
+] });
 
 client.once('ready', async () => {
-    console.log(`Kirjauduttu sisään nimellä ${client.user.tag}`);
+    console.log(`Kirjauduttu sisään ${client.user.tag}`);
 
     const guild = await client.guilds.fetch(GUILD_ID);
     const members = await guild.members.fetch();
 
-    // Tarkistetaan säännöllisesti
+    // Säännöllinen tarkistus
     setInterval(async () => {
+        console.log('Tarkistetaan striimaajat...');
         for (const member of members.values()) {
-            // Tarkistetaan, onko jäsenellä "Striimaaja" rooli
             if (member.roles.cache.has(STRIIMAAJA_ROLE_ID)) {
-                // Tarkistetaan, onko tallennettu Twitch-käyttäjänimi
+                // Tarkistetaan, onko tallennettu Twitch-nimi
                 if (!userData[member.id]) {
                     userData[member.id] = {
                         twitchName: member.displayName, // Voit muuttaa, jos sinulla on erillinen Twitch-nimi
@@ -66,14 +70,14 @@ client.once('ready', async () => {
                             user_login: twitchUsername
                         }
                     });
+
                     const isLive = response.data.data.length > 0;
                     const memberId = member.id;
-
                     const currentlyLive = userData[memberId]._isLive || false;
 
                     // Jos menee liveen
                     if (isLive && !currentlyLive) {
-                        const channel = guild.channels.cache.get(MAINOSTUS_CHANNEL_ID);
+                        const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
                         const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
 
                         // Lisää "LIVESSÄ" rooli
@@ -86,7 +90,7 @@ client.once('ready', async () => {
                     }
                     // Jos lopettaa striimin
                     else if (!isLive && currentlyLive) {
-                        const channel = guild.channels.cache.get(MAINOSTUS_CHANNEL_ID);
+                        const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
                         const messageId = userData[memberId]._liveMessageId;
                         if (messageId) {
                             try {
@@ -106,6 +110,25 @@ client.once('ready', async () => {
                     }
                 } catch (err) {
                     console.error('Virhe Twitch API:ssä:', err);
+                }
+            } else {
+                // Jos jäsen ei enää roolissa, mutta oli aiemmin live
+                if (userData[member.id] && userData[member.id]._isLive) {
+                    // Poista viesti ja rooli jos tarpeen
+                    const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+                    const messageId = userData[member.id]._liveMessageId;
+                    if (messageId) {
+                        try {
+                            const msg = await channel.messages.fetch(messageId);
+                            await msg.delete();
+                        } catch (err) {
+                            console.log('Viestin poisto epäonnistui:', err);
+                        }
+                    }
+                    await member.roles.remove(LIVESSA_ROLE_ID);
+                    userData[member.id]._isLive = false;
+                    userData[member.id]._liveMessageId = null;
+                    saveData();
                 }
             }
         }
