@@ -1,7 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 
-const FILE_PATH = path.resolve(__dirname, 'storage.json');
+const storageFile = path.join(__dirname, 'storage.json');
+
+interface BotSettings {
+  isActive: boolean;
+  checkIntervalSeconds: number;
+  watchedRoleId: string;
+  liveRoleId: string;
+  announceChannelId: string;
+}
 
 interface Streamer {
   discordUserId: string;
@@ -13,19 +21,12 @@ interface Streamer {
   announcementMessageId: string | null;
 }
 
-interface BotSettings {
-  isActive: boolean;
-  checkIntervalSeconds: number;
-  watchedRoleId: string;
-  liveRoleId: string;
-  announceChannelId: string;
-}
-
-// Lataa data JSON-tiedostosta tai luo tyhjä
-let data: {
+interface StorageData {
   streamers: Record<string, Streamer>;
   botSettings: BotSettings;
-} = {
+}
+
+let data: StorageData = {
   streamers: {},
   botSettings: {
     isActive: true,
@@ -36,44 +37,46 @@ let data: {
   },
 };
 
+// Lue olemassa oleva tiedosto jos löytyy
 try {
-  if (fs.existsSync(FILE_PATH)) {
-    data = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+  if (fs.existsSync(storageFile)) {
+    const fileData = JSON.parse(fs.readFileSync(storageFile, 'utf8'));
+    data = { ...data, ...fileData };
+  } else {
+    // Luo tiedosto ensimmäistä kertaa
+    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
   }
 } catch (err) {
-  console.error('Error loading storage.json:', err);
+  console.error('Error reading storage file:', err);
 }
 
-// Apufunktio tallennukseen
-function save() {
-  fs.writeFileSync(FILE_PATH, JSON.stringify(data, null, 2));
-}
-
+// ==========================
+// Exported storage functions
+// ==========================
 export const storage = {
-  // Streamerit
-  getStreamer: async (id: string): Promise<Streamer | null> => {
-    return data.streamers[id] || null;
-  },
-
-  createStreamer: async (streamer: Streamer): Promise<Streamer> => {
-    data.streamers[streamer.discordUserId] = streamer;
-    save();
-    return streamer;
-  },
-
-  updateStreamer: async (id: string, updates: Partial<Streamer>): Promise<void> => {
-    if (!data.streamers[id]) return;
-    data.streamers[id] = { ...data.streamers[id], ...updates };
-    save();
-  },
-
-  // Bot-asetukset
   getBotSettings: async (): Promise<BotSettings> => {
     return data.botSettings;
   },
-
-  updateBotSettings: async (settings: Partial<BotSettings>): Promise<void> => {
-    data.botSettings = { ...data.botSettings, ...settings };
-    save();
+  updateBotSettings: async (newSettings: Partial<BotSettings>) => {
+    data.botSettings = { ...data.botSettings, ...newSettings };
+    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
+  },
+  getStreamer: async (discordUserId: string): Promise<Streamer | null> => {
+    return data.streamers[discordUserId] || null;
+  },
+  createStreamer: async (streamer: Streamer) => {
+    data.streamers[streamer.discordUserId] = streamer;
+    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
+    return streamer;
+  },
+  updateStreamer: async (discordUserId: string, updates: Partial<Streamer>) => {
+    const streamer = data.streamers[discordUserId];
+    if (!streamer) return;
+    data.streamers[discordUserId] = { ...streamer, ...updates };
+    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
+  },
+  createActivity: async (activity: any) => {
+    // Tämä voi vain logata tai tallentaa myöhemmin
+    console.log('Activity:', activity);
   },
 };
