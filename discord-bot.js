@@ -1,3 +1,4 @@
+// discord-bot.js
 import { Client, GatewayIntentBits } from 'discord.js';
 import { storage } from './storage.js';
 import { TwitchAPI } from './twitch-api.js';
@@ -48,7 +49,13 @@ export class DiscordBot {
       if (!streamer?.twitchUsername) continue;
 
       const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
-      const isLive = !!streamData;
+
+      // ✅ Tarkistus: GTA V + otsikko sisältää RSRP tai #RSRP
+      const isQualifyingStream = streamData &&
+        streamData.game_name === 'Grand Theft Auto V' &&
+        (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
+
+      const isLive = !!isQualifyingStream;
 
       const liveRole = guild.roles.cache.get(liveRoleId);
       const announceChannel = guild.channels.cache.get(announceChannelId);
