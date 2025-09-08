@@ -53,8 +53,8 @@ const client = new Client({ intents: [
 const url = require('url');
 const querystring = require('querystring');
 
-const CLIENT_ID = 'OMA_CLIENT_ID'; // Korvaa omalla
-const CLIENT_SECRET = 'OMA_CLIENT_SECRET'; // Korvaa omalla
+const CLIENT_ID = 1413061168976760846; // Korvaa omalla
+const DISCORD_TOKEN = = process.env.DISCORD_TOKEN; // Korvaa omalla
 const REDIRECT_URI = `http://localhost:${PORT}/callback`; // Sama kuin OAuth2 asetuksissa
 
 // OAuth2 kirjautumisen aloitus
