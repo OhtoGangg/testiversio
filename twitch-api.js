@@ -1,4 +1,3 @@
-// twitch-api.js (ESM-versio)
 import fetch from 'node-fetch';
 
 export class TwitchAPI {
