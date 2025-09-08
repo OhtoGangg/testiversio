@@ -1,6 +1,11 @@
-import 'dotenv/config';
 import express from 'express';
 import { DiscordBot } from './discord-bot.js';
+
+// Tarkistetaan, että token löytyy
+if (!process.env.DISCORD_BOT_TOKEN) {
+  console.error('DISCORD_BOT_TOKEN ei ole asetettu Renderin environment variables -osiossa!');
+  process.exit(1); // Lopetetaan deploy, jos token puuttuu
+}
 
 const PORT = process.env.PORT || 3000;
 
