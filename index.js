@@ -1,11 +1,11 @@
-require('dotenv').config();
-const express = require('express');
-const { DiscordBot } = require('./discord-bot');
+import 'dotenv/config';
+import express from 'express';
+import { DiscordBot } from './discord-bot.js';
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 const app = express();
-app.get('/', (req, res) => res.send('Bot toimii ja HTTP-serveri on pystyssä!'));
+app.get('/', (req, res) => res.send('Bot toimii! HTTP-serveri pystyssä.'));
 app.listen(PORT, () => console.log(`HTTP server running on port ${PORT}`));
 
 (async () => {
