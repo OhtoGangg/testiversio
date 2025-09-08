@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import 'dotenv/config';
 
-const storageFile = path.join(__dirname, 'storage.json');
+const STORAGE_FILE = path.join(__dirname, 'storage.json');
 
 interface BotSettings {
   isActive: boolean;
@@ -11,10 +12,10 @@ interface BotSettings {
   announceChannelId: string;
 }
 
-interface Streamer {
+interface StreamerData {
   discordUserId: string;
   discordUsername: string;
-  twitchUsername: string;
+  twitchUsername: string | null;
   isLive: boolean;
   currentStreamTitle: string | null;
   currentViewers: number;
@@ -22,11 +23,12 @@ interface Streamer {
 }
 
 interface StorageData {
-  streamers: Record<string, Streamer>;
+  streamers: Record<string, StreamerData>;
   botSettings: BotSettings;
 }
 
-let data: StorageData = {
+// Lataa storage.json
+let storage: StorageData = {
   streamers: {},
   botSettings: {
     isActive: true,
@@ -37,46 +39,65 @@ let data: StorageData = {
   },
 };
 
-// Lue olemassa oleva tiedosto jos löytyy
-try {
-  if (fs.existsSync(storageFile)) {
-    const fileData = JSON.parse(fs.readFileSync(storageFile, 'utf8'));
-    data = { ...data, ...fileData };
-  } else {
-    // Luo tiedosto ensimmäistä kertaa
-    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
+if (fs.existsSync(STORAGE_FILE)) {
+  try {
+    const raw = fs.readFileSync(STORAGE_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+
+    storage.streamers = parsed.streamers || {};
+
+    // Jos .env:ssa on arvoja, ne korvaavat storage.jsonin
+    storage.botSettings = {
+      isActive: parsed.botSettings?.isActive ?? true,
+      checkIntervalSeconds: parsed.botSettings?.checkIntervalSeconds ?? 60,
+      watchedRoleId: process.env.STRIIMAAJA_ROLE_ID || parsed.botSettings?.watchedRoleId || '',
+      liveRoleId: process.env.LIVE_ROLE_ID || parsed.botSettings?.liveRoleId || '',
+      announceChannelId: process.env.MAINOSTUS_CHANNEL_ID || parsed.botSettings?.announceChannelId || '',
+    };
+  } catch (err) {
+    console.error('Error parsing storage.json:', err);
   }
-} catch (err) {
-  console.error('Error reading storage file:', err);
 }
 
-// ==========================
-// Exported storage functions
-// ==========================
-export const storage = {
-  getBotSettings: async (): Promise<BotSettings> => {
-    return data.botSettings;
-  },
-  updateBotSettings: async (newSettings: Partial<BotSettings>) => {
-    data.botSettings = { ...data.botSettings, ...newSettings };
-    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
-  },
-  getStreamer: async (discordUserId: string): Promise<Streamer | null> => {
-    return data.streamers[discordUserId] || null;
-  },
-  createStreamer: async (streamer: Streamer) => {
-    data.streamers[streamer.discordUserId] = streamer;
-    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
-    return streamer;
-  },
-  updateStreamer: async (discordUserId: string, updates: Partial<Streamer>) => {
-    const streamer = data.streamers[discordUserId];
-    if (!streamer) return;
-    data.streamers[discordUserId] = { ...streamer, ...updates };
-    fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
-  },
-  createActivity: async (activity: any) => {
-    // Tämä voi vain logata tai tallentaa myöhemmin
-    console.log('Activity:', activity);
-  },
-};
+// Tallentaa storage.json
+function save() {
+  fs.writeFileSync(STORAGE_FILE, JSON.stringify(storage, null, 2), 'utf8');
+}
+
+// =================================
+// Streamer helperit
+// =================================
+export async function getStreamer(discordUserId: string): Promise<StreamerData | null> {
+  return storage.streamers[discordUserId] || null;
+}
+
+export async function createStreamer(streamer: StreamerData): Promise<StreamerData> {
+  storage.streamers[streamer.discordUserId] = streamer;
+  save();
+  return streamer;
+}
+
+export async function updateStreamer(discordUserId: string, updates: Partial<StreamerData>) {
+  const streamer = storage.streamers[discordUserId];
+  if (!streamer) return null;
+  storage.streamers[discordUserId] = { ...streamer, ...updates };
+  save();
+  return storage.streamers[discordUserId];
+}
+
+// =================================
+// Bot settings helperit
+// =================================
+export async function getBotSettings(): Promise<BotSettings> {
+  return storage.botSettings;
+}
+
+export async function updateBotSettings(updates: Partial<BotSettings>) {
+  storage.botSettings = { ...storage.botSettings, ...updates };
+  save();
+}
+
+// =================================
+// Export storage object tarvittaessa
+// =================================
+export const storageObj = storage;
