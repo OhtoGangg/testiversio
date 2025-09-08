@@ -1,58 +1,17 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
 
-const storageFilePath = path.resolve(__dirname, 'storage.json');
+const storageFile = './storage.json';
+let storageData = {};
+try { storageData = JSON.parse(fs.readFileSync(storageFile, 'utf8')); } catch {}
 
-function readStorage() {
-  try {
-    const raw = fs.readFileSync(storageFilePath, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    const defaultData = {
-      streamers: {},
-      botSettings: {
-        isActive: true,
-        checkIntervalSeconds: 60,
-        watchedRoleId: '',
-        liveRoleId: '',
-        announceChannelId: ''
-      }
-    };
-    writeStorage(defaultData);
-    return defaultData;
-  }
-}
+export const storage = {
+  botSettings: storageData.botSettings || {},
+  liveMessages: storageData.liveMessages || {},
+  streamers: storageData.streamers || {},
 
-function writeStorage(data) {
-  fs.writeFileSync(storageFilePath, JSON.stringify(data, null, 2));
-}
-
-const storage = {
-  getBotSettings: async () => readStorage().botSettings,
-  updateBotSettings: async (newSettings) => {
-    const data = readStorage();
-    data.botSettings = { ...data.botSettings, ...newSettings };
-    writeStorage(data);
-  },
-  getStreamer: async (discordUserId) => {
-    const data = readStorage();
-    return data.streamers[discordUserId] || null;
-  },
-  createStreamer: async (streamer) => {
-    const data = readStorage();
-    data.streamers[streamer.discordUserId] = streamer;
-    writeStorage(data);
-    return streamer;
-  },
-  updateStreamer: async (discordUserId, updates) => {
-    const data = readStorage();
-    if (!data.streamers[discordUserId]) return;
-    data.streamers[discordUserId] = { ...data.streamers[discordUserId], ...updates };
-    writeStorage(data);
-  },
-  createActivity: async (activity) => {
-    console.log('Activity:', activity);
-  }
+  getBotSettings() { return this.botSettings; },
+  async getStreamer(id) { return this.streamers[id] || null; },
+  async createStreamer(data) { this.streamers[data.discordUserId] = data; this.save(); return data; },
+  async updateStreamer(id, data) { this.streamers[id] = { ...this.streamers[id], ...data }; this.save(); },
+  save() { fs.writeFileSync(storageFile, JSON.stringify({ ...this }, null, 2)); }
 };
-
-module.exports = { storage };
