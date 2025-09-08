@@ -3,8 +3,8 @@
   "botSettings": {
     "isActive": true,
     "checkIntervalSeconds": 60,
-    "watchedRoleId": "YOUR_STRIIMAAJA_ROLE_ID",
-    "liveRoleId": "YOUR_LIVE_ROLE_ID",
-    "announceChannelId": "YOUR_MAINOSTUS_CHANNEL_ID"
+    "watchedRoleId": "",
+    "liveRoleId": "",
+    "announceChannelId": ""
   }
 }
