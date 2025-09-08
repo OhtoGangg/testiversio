@@ -4,8 +4,8 @@ const http = require('http');
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
-res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-res.end('<h1>Palvelu on käynnissä</h1>');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+  res.end('<h1>Palvelu on käynnissä</h1>');
 });
 
 server.listen(PORT, () => {
@@ -30,17 +30,17 @@ let userData = {};
 
 // Funktiot datan lataamiseen ja tallentamiseen
 function loadData() {
-    try {
-        const rawData = fs.readFileSync(dataFilePath, 'utf8');
-        userData = JSON.parse(rawData);
-    } catch (err) {
-        console.log('Ei voitu lukea data.json-tiedostoa, luodaan uusi.');
-        userData = {};
-    }
+  try {
+    const rawData = fs.readFileSync(dataFilePath, 'utf8');
+    userData = JSON.parse(rawData);
+  } catch (err) {
+    console.log('Ei voitu lukea data.json-tiedostoa, luodaan uusi.');
+    userData = {};
+  }
 }
 
 function saveData() {
-    fs.writeFileSync(dataFilePath, JSON.stringify(userData, null, 2));
+  fs.writeFileSync(dataFilePath, JSON.stringify(userData, null, 2));
 }
 
 // Ladataan data heti käynnistyksen yhteydessä
@@ -54,114 +54,125 @@ const client = new Client({ intents: [
 ] });
 
 client.once('ready', async () => {
-    console.log(`Kirjauduttu sisään ${client.user.tag}`);
+  console.log(`Kirjauduttu sisään ${client.user.tag}`);
 
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const members = await guild.members.fetch();
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const members = await guild.members.fetch();
 
-    // Säännöllinen tarkistus
-    setInterval(async () => {
-        console.log('Tarkistetaan striimaajat...');
-        for (const member of members.values()) {
-            if (member.roles.cache.has(STRIIMAAJA_ROLE_ID)) {
-                // Tarkistetaan, onko tallennettu Twitch-nimi
-                if (!userData[member.id]) {
-                    userData[member.id] = {
-                        twitchName: member.displayName, // Voit muuttaa, jos sinulla on erillinen Twitch-nimi
-                        _isLive: false,
-                        _liveMessageId: null
-                    };
-                }
-
-                const twitchUsername = userData[member.id].twitchName;
-
-                try {
-                    const response = await axios.get('https://api.twitch.tv/helix/streams', {
-                        headers: {
-                            'Client-ID': TWITCH_CLIENT_ID,
-                            'Authorization': `Bearer ${TWITCH_ACCESS_TOKEN}`
-                        },
-                        params: {
-                            user_login: twitchUsername
-                        }
-                    });
-
-                    const streamData = response.data.data[0];
-                    const title = streamData ? streamData.title : '';
-                    const category = streamData ? streamData.game_name : '';
-
-                    const isRSRP = title.includes('#RSRP') || title.includes('RSRP');
-                    const isGTA = category === 'GTA V';
-
-                    const isLive = streamData !== undefined && Object.keys(streamData).length > 0;
-                    const memberId = member.id;
-                    const currentlyLive = userData[memberId]._isLive || false;
-
-                    // Tarkistetaan ehdot ennen ilmoituksen lähettämistä
-                    if (isLive && !currentlyLive && isRSRP && isGTA) {
-                        const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
-                     console.log(`Yritetään lähettää viesti ja lisätä rooli jäsenelle ${member.user.tag}`);
-const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
-console.log(`Viestin lähetetty onnistuneesti. Viestin ID: ${message.id}`);
-// Lisätään rooli
-await member.roles.add(LIVESSA_ROLE_ID);
-console.log(`Rooli lisätty käyttäjälle ${member.user.tag}`);
-
-                        // Lisää "LIVESSÄ" rooli
-                        await member.roles.add(LIVESSA_ROLE_ID);
-
-                        // Päivitä data
-                        userData[memberId]._isLive = true;
-                        userData[memberId]._liveMessageId = message.id;
-                        saveData();
-                    }
-                    // Jos lopettaa striimin tai ehdot eivät täyty, poista viesti ja rooli
-                    else if ((!isLive || !isRSRP || !isGTA) && currentlyLive) {
-                        const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
-                        const messageId = userData[member.id]._liveMessageId;
-                        if (messageId) {
-                            try {
-                                const msg = await channel.messages.fetch(messageId);
-                                await msg.delete();
-                            } catch (err) {
-                                console.log('Viestin poisto epäonnistui:', err);
-                            }
-                        }
-                        await member.roles.remove(LIVESSA_ROLE_ID);
-                        userData[member.id]._isLive = false;
-                        userData[member.id]._liveMessageId = null;
-                        saveData();
-                    }
-                } catch (err) {
-                    console.error('Virhe Twitch API:ssä:', err);
-                }
-            } else {
-                // Jos jäsen ei enää roolissa, mutta oli aiemmin live
-                if (userData[member.id] && userData[member.id]._isLive) {
-                    // Poista viesti ja rooli jos tarpeen
-                    const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
-                    const messageId = userData[member.id]._liveMessageId;
-                    if (messageId) {
-                        try {
-                            const msg = await channel.messages.fetch(messageId);
-                            await msg.delete();
-                        } catch (err) {
-                            console.log('Viestin poisto epäonnistui:', err);
-                        }
-                    }
-                    await member.roles.remove(LIVESSA_ROLE_ID);
-                    userData[member.id]._isLive = false;
-                    userData[member.id]._liveMessageId = null;
-                    saveData();
-                }
-            }
+  // Säännöllinen tarkistus
+  setInterval(async () => {
+    console.log('Tarkistetaan striimaajat...');
+    for (const member of members.values()) {
+      if (member.roles.cache.has(STRIIMAAJA_ROLE_ID)) {
+        // Tarkistetaan, onko tallennettu Twitch-nimi
+        if (!userData[member.id]) {
+          userData[member.id] = {
+            twitchName: member.displayName, // Voit muuttaa, jos sinulla on erillinen Twitch-nimi
+            _isLive: false,
+            _liveMessageId: null
+          };
         }
-    }, 60000); // tarkistaa minuutin välein
+
+        const twitchUsername = userData[member.id].twitchName;
+
+        try {
+          const response = await axios.get('https://api.twitch.tv/helix/streams', {
+            headers: {
+              'Client-ID': TWITCH_CLIENT_ID,
+              'Authorization': `Bearer ${TWITCH_ACCESS_TOKEN}`
+            },
+            params: {
+              user_login: twitchUsername
+            }
+          });
+
+          const streamData = response.data.data[0];
+          const title = streamData ? streamData.title : '';
+          const category = streamData ? streamData.game_name : '';
+
+          const isRSRP = title.includes('#RSRP') || title.includes('RSRP');
+          const isGTA = category === 'GTA V';
+
+          const isLive = streamData !== undefined && Object.keys(streamData).length > 0;
+          const memberId = member.id;
+          const currentlyLive = userData[memberId]._isLive || false;
+
+          // Tarkistetaan ehdot ennen ilmoituksen lähettämistä
+          if (isLive && !currentlyLive && isRSRP && isGTA) {
+            const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+            console.log(`Lähetetään ilmoitus jäsenelle ${member.user.tag}`);
+
+            try {
+              console.log(`Yritetään lähettää viesti jäsenelle ${member.user.tag}`);
+              const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
+              console.log(`Viestin lähetetty onnistuneesti. Viestin ID: ${message.id}`);
+
+              // Lisätään "LIVESSÄ" rooli
+              console.log(`Yritetään lisätä rooli jäsenelle ${member.user.tag}`);
+              await member.roles.add(LIVESSA_ROLE_ID);
+              console.log(`Rooli lisätty käyttäjälle ${member.user.tag}`);
+
+              // Päivitä data
+              userData[member.id]._isLive = true;
+              userData[member.id]._liveMessageId = message.id;
+              saveData();
+            } catch (err) {
+              console.log(`Virhe viestin lähetyksessä tai roolin lisäämisessä jäsenelle ${member.user.tag}:`, err);
+            }
+
+          }
+          // Jos lopettaa striimin tai ehdot eivät täyty, poista viesti ja rooli
+          else if ((!isLive || !isRSRP || !isGTA) && currentlyLive) {
+            const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+            const messageId = userData[member.id]._liveMessageId;
+            if (messageId) {
+              try {
+                console.log(`Yritetään poistaa viesti jäseneltä ${member.user.tag}`);
+                const msg = await channel.messages.fetch(messageId);
+                await msg.delete();
+                console.log(`Viestin poistettu`);
+              } catch (err) {
+                console.log('Viestin poisto epäonnistui:', err);
+              }
+            }
+            console.log(`Yritetään poistaa rooli jäseneltä ${member.user.tag}`);
+            await member.roles.remove(LIVESSA_ROLE_ID);
+            userData[member.id]._isLive = false;
+            userData[member.id]._liveMessageId = null;
+            saveData();
+          }
+        } catch (err) {
+          console.error('Virhe Twitch API:ssä:', err);
+        }
+      } else {
+        // Jos jäsen ei enää roolissa, mutta oli aiemmin live
+        if (userData[member.id] && userData[member.id]._isLive) {
+          const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+          const messageId = userData[member.id]._liveMessageId;
+          if (messageId) {
+            try {
+              console.log(`Yritetään poistaa viesti jäseneltä ${member.user.tag}`);
+              const msg = await channel.messages.fetch(messageId);
+              await msg.delete();
+              console.log(`Viestin poistettu`);
+            } catch (err) {
+              console.log('Viestin poisto epäonnistui:', err);
+            }
+          }
+          console.log(`Yritetään poistaa rooli jäseneltä ${member.user.tag}`);
+          await member.roles.remove(LIVESSA_ROLE_ID);
+          userData[member.id]._isLive = false;
+          userData[member.id]._liveMessageId = null;
+          saveData();
+        }
+      }
+    }
+  }, 60000); // tarkistaa minuutin välein
 });
 
 // Funktio Twitch URL:lle
 function getTwitchUrl(username) {
-    return `https://www.twitch.tv/${username}`;
+  return `https://www.twitch.tv/${username}`;
 }
 
 client.login(TOKEN);
