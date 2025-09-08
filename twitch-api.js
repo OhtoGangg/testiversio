@@ -1,6 +1,7 @@
-const fetch = require('node-fetch');
+// twitch-api.js (ESM-versio)
+import fetch from 'node-fetch';
 
-class TwitchAPI {
+export class TwitchAPI {
   constructor() {
     this.clientId = process.env.TWITCH_CLIENT_ID || '';
     this.accessToken = process.env.TWITCH_ACCESS_TOKEN || '';
@@ -34,5 +35,3 @@ class TwitchAPI {
     return data.data?.[0] || null;
   }
 }
-
-module.exports = { TwitchAPI };
