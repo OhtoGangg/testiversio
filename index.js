@@ -5,6 +5,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
 
 // ==============================
 // 2️⃣ ENV-muuttujat
@@ -18,18 +19,19 @@ const MAINOSTUS_CHANNEL_ID = process.env.MAINOSTUS_CHANNEL_ID;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/auth/callback`;
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+const TWITCH_ACCESS_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 
 // ==============================
-// 3️⃣ Data.json (vain admin-token tallennetaan)
+// 3️⃣ Data.json (admin token + live message id)
 // ==============================
-const fs = require('fs');
 const dataFilePath = './data.json';
 let data = {};
 try { data = JSON.parse(fs.readFileSync(dataFilePath, 'utf8')); } catch {}
 function saveData() { fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2)); }
 
 // ==============================
-// 4️⃣ Express-palvelin (OAuth2 kirjautuminen adminille)
+// 4️⃣ Express-palvelin (OAuth2 adminille)
 // ==============================
 const app = express();
 app.listen(PORT, () => console.log(`HTTP server running on port ${PORT}`));
@@ -85,30 +87,34 @@ client.once('ready', async () => {
   await guild.members.fetch();
   const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
 
-  // 1 min välein tarkistus
+  const checkedUsers = {}; // tallentaa viimeksi tarkistetun streamin
+
   setInterval(async () => {
     const adminToken = data.adminToken;
     if (!adminToken) return console.log('Admin ei ole kirjautunut OAuth2:lla');
 
-    guild.members.cache.forEach(async member => {
-      if (!member.roles.cache.has(STRIIMAAJA_ROLE_ID)) return;
+    const streamerMembers = guild.members.cache.filter(m => m.roles.cache.has(STRIIMAAJA_ROLE_ID));
 
+    for (const member of streamerMembers.values()) {
       try {
-        // Discord connections
+        // Hae Discord connections
         const connRes = await axios.get(`https://discord.com/api/users/${member.id}/connections`, {
           headers: { Authorization: `Bearer ${adminToken}` }
         });
 
         const twitchConn = connRes.data.find(c => c.type === 'twitch');
-        if (!twitchConn) return;
-
+        if (!twitchConn) continue;
         const twitchName = twitchConn.name;
 
-        // Twitch stream status
+        // Jos viimeksi tarkistettu 1 min sisällä, ohita
+        if (checkedUsers[twitchName] && Date.now() - checkedUsers[twitchName] < 60000) continue;
+        checkedUsers[twitchName] = Date.now();
+
+        // Twitch API
         const streamRes = await axios.get(`https://api.twitch.tv/helix/streams?user_login=${twitchName}`, {
           headers: {
-            'Client-ID': process.env.TWITCH_CLIENT_ID,
-            'Authorization': `Bearer ${process.env.TWITCH_ACCESS_TOKEN}`
+            'Client-ID': TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${TWITCH_ACCESS_TOKEN}`
           }
         });
 
@@ -116,21 +122,25 @@ client.once('ready', async () => {
 
         if (isLive && !member.roles.cache.has(LIVESSA_ROLE_ID)) {
           await member.roles.add(LIVESSA_ROLE_ID);
-          const message = await channel.send(`🔴 ${member.user.username} on nyt **livenä**! https://twitch.tv/${twitchName}`);
-          if (!member._liveMessageId) member._liveMessageId = message.id;
+          const msg = await channel.send(`🔴 ${member.user.username} on nyt **livenä**! https://twitch.tv/${twitchName}`);
+          if (!data.liveMessages) data.liveMessages = {};
+          data.liveMessages[member.id] = msg.id;
+          saveData();
         } else if (!isLive && member.roles.cache.has(LIVESSA_ROLE_ID)) {
           await member.roles.remove(LIVESSA_ROLE_ID);
-          if (member._liveMessageId) {
-            try { await channel.messages.fetch(member._liveMessageId).then(m => m.delete()); } catch {}
-            member._liveMessageId = null;
+          if (data.liveMessages?.[member.id]) {
+            try { await channel.messages.fetch(data.liveMessages[member.id]).then(m => m.delete()); } catch {}
+            delete data.liveMessages[member.id];
+            saveData();
           }
         }
 
       } catch (err) {
-        console.error('Error Twitch/Discord:', err.response?.data || err.message || err);
+        console.error(`Virhe käyttäjällä ${member.user.username}:`, err.response?.data || err.message || err);
       }
-    });
-  }, 60000);
+    }
+
+  }, 60000); // 1 minuutti
 });
 
 client.login(TOKEN);
