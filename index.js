@@ -2,10 +2,9 @@
 // index.js
 // ==============================
 
-// 1️⃣ ENV & moduulit
-require('dotenv').config();
+// 1️⃣ Moduulit
 const express = require('express');
-const { DiscordBot } = require('./discord-bot'); // polku TypeScript-tiedostoosi
+const { DiscordBot } = require('./discord-bot.js'); // varmista, että käännät TS -> JS
 
 // 2️⃣ Portti
 const PORT = process.env.PORT || 3000;
@@ -23,7 +22,7 @@ app.listen(PORT, () => {
 (async () => {
   const bot = new DiscordBot();
   try {
-    await bot.initialize(); // tämä käyttää .env:stä DISCORD_BOT_TOKEN
+    await bot.initialize(); // käyttää Renderin ympäristömuuttujia
     console.log('Discord-botti käynnistetty!');
   } catch (err) {
     console.error('Virhe botin käynnistyksessä:', err);
