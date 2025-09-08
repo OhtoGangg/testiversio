@@ -1,3 +1,7 @@
+// twitch-api.ts
+
+import fetch from 'node-fetch';
+
 export interface TwitchStreamData {
   id: string;
   user_id: string;
@@ -33,8 +37,8 @@ export class TwitchAPI {
   private baseURL = 'https://api.twitch.tv/helix';
 
   constructor() {
-    this.clientId = process.env.TWITCH_CLIENT_ID || process.env.TWITCH_APP_ID || '';
-    this.accessToken = process.env.TWITCH_ACCESS_TOKEN || process.env.TWITCH_TOKEN || '';
+    this.clientId = process.env.TWITCH_CLIENT_ID || '';
+    this.accessToken = process.env.TWITCH_ACCESS_TOKEN || '';
 
     if (!this.clientId || !this.accessToken) {
       console.error('Missing Twitch API credentials. Set TWITCH_CLIENT_ID and TWITCH_ACCESS_TOKEN');
