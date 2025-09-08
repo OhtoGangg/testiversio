@@ -1,5 +1,10 @@
-// Lisätään palvelimen koodi
+// Lisätään dotenv-tuki ympäristömuuttujille
+require('dotenv').config();
+
+// Palvelin
 const http = require('http');
+const url = require('url');
+const querystring = require('querystring');
 
 const PORT = process.env.PORT || 3000;
 
@@ -17,11 +22,13 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 
-const TOKEN = process.env.DISCORD_TOKEN; // Discord-botin token
+const TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const LIVESSA_ROLE_ID = process.env.LIVESSA_ROLE_ID;
 const MAINOSTUS_CHANNEL_ID = process.env.MAINOSTUS_CHANNEL_ID;
 const STRIIMAAJA_ROLE_ID = process.env.STRIIMAAJA_ROLE_ID;
+const CLIENT_ID = process.env.DISCORD_APPLICATION_ID; // Sovelluksen ID
+const CLIENT_SECRET = process.env.CLIENT_SECRET; // Sovelluksen salaisuus
 
 const dataFilePath = './data.json';
 let userData = {};
@@ -49,33 +56,25 @@ const client = new Client({ intents: [
     GatewayIntentBits.GuildVoiceStates
 ] });
 
-// OHJELMAN OSA: OAuth2 palvelin (samalla tiedostolla)
-const url = require('url');
-const querystring = require('querystring');
+// OAuth2 palvelin osio
+const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 
-const CLIENT_ID = 1413061168976760846; // Korvaa omalla
-const DISCORD_TOKEN = = process.env.DISCORD_TOKEN; // Korvaa omalla
-const REDIRECT_URI = `http://localhost:${PORT}/callback`; // Sama kuin OAuth2 asetuksissa
+// Näytetään OAuth2 kirjautumislinkki (esim. konsolissa)
+console.log(`Avaa selaimessa: http://localhost:${PORT}/auth`);
 
-// OAuth2 kirjautumisen aloitus
-if (true) { // Tämä pitää muuttaa, esim. commandilla tai erikseen
-  // Esimerkki: avaa URL käyttäjälle
-  console.log(`Avaa selaimessa: http://localhost:${PORT}/auth`);
-}
-
-// OAuth2 -tapahtuma
+// Serverin request-handler
 server.on('request', async (req, res) => {
   const parsedUrl = url.parse(req.url);
   if (parsedUrl.pathname === '/auth') {
-    // Lähetetään käyttäjälle OAuth2 kirjautumislinkki
+    // Lähetetään OAuth2 kirjautumislinkki
     const authUrl = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
-    res.writeHead(302, { Location: authUrl });
+    res.writeHead(302, { 'Location': authUrl });
     res.end();
   } else if (parsedUrl.pathname === '/callback') {
     const qs = querystring.parse(parsedUrl.query);
     const code = qs.code;
 
-    // Vaihe 1: hakee token
+    // Tokenin hakeminen
     try {
       const tokenRes = await axios.post('https://discord.com/api/oauth2/token', querystring.stringify({
         client_id: CLIENT_ID,
@@ -92,7 +91,7 @@ server.on('request', async (req, res) => {
 
       const accessToken = tokenRes.data.access_token;
 
-      // Vaihe 2: hakee käyttäjätiedot
+      // Käyttäjätietojen hakeminen
       const userRes = await axios.get('https://discord.com/api/users/@me', {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -106,7 +105,7 @@ server.on('request', async (req, res) => {
       userData[userId] = {
         discordId: userId,
         username: username,
-        twitchName: null, // Voit lisätä Twitch-nimen myöhemmin
+        twitchName: null,
         _isLive: false,
         _liveMessageId: null
       };
@@ -125,14 +124,14 @@ server.on('request', async (req, res) => {
   }
 });
 
-// Discord-botin logiikka
+// Discord-botin käynnistys
 client.once('ready', async () => {
   console.log(`Kirjauduttu sisään ${client.user.tag}`);
   const guild = await client.guilds.fetch(GUILD_ID);
   const members = await guild.members.fetch();
 
   setInterval(async () => {
-    // ... (kuten aiemmin: Twitchin tarkistus ja roolien hallinta)
+    // Twitchin tarkistus ja roolien hallinta
   }, 60000);
 });
 
@@ -141,4 +140,5 @@ function getTwitchUrl(username) {
   return `https://www.twitch.tv/${username}`;
 }
 
+// Botin login
 client.login(TOKEN);
