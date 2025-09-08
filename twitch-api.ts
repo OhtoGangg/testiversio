@@ -1,5 +1,3 @@
-// twitch-api.ts
-
 import fetch from 'node-fetch';
 
 export interface TwitchStreamData {
@@ -41,7 +39,7 @@ export class TwitchAPI {
     this.accessToken = process.env.TWITCH_ACCESS_TOKEN || '';
 
     if (!this.clientId || !this.accessToken) {
-      console.error('Missing Twitch API credentials. Set TWITCH_CLIENT_ID and TWITCH_ACCESS_TOKEN');
+      console.error('Missing Twitch API credentials.');
     }
   }
 
@@ -50,54 +48,24 @@ export class TwitchAPI {
       throw new Error('Twitch API credentials not configured');
     }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    const res = await fetch(`${this.baseURL}${endpoint}`, {
       headers: {
         'Client-ID': this.clientId,
         'Authorization': `Bearer ${this.accessToken}`,
       },
     });
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Twitch API authentication failed - check access token');
-      }
-      throw new Error(`Twitch API error: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    if (!res.ok) throw new Error(`Twitch API error: ${res.status} ${res.statusText}`);
+    return res.json();
   }
 
   async getUser(username: string): Promise<TwitchUser | null> {
-    try {
-      const data = await this.makeRequest(`/users?login=${encodeURIComponent(username)}`);
-      return data.data?.[0] || null;
-    } catch (error) {
-      console.error(`Error fetching Twitch user ${username}:`, error);
-      return null;
-    }
+    const data = await this.makeRequest(`/users?login=${encodeURIComponent(username)}`);
+    return data.data?.[0] || null;
   }
 
   async getStreamData(username: string): Promise<TwitchStreamData | null> {
-    try {
-      const data = await this.makeRequest(`/streams?user_login=${encodeURIComponent(username)}`);
-      return data.data?.[0] || null;
-    } catch (error) {
-      console.error(`Error fetching stream data for ${username}:`, error);
-      return null;
-    }
-  }
-
-  async validateToken(): Promise<boolean> {
-    try {
-      const response = await fetch('https://id.twitch.tv/oauth2/validate', {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-        },
-      });
-      return response.ok;
-    } catch (error) {
-      console.error('Error validating Twitch token:', error);
-      return false;
-    }
+    const data = await this.makeRequest(`/streams?user_login=${encodeURIComponent(username)}`);
+    return data.data?.[0] || null;
   }
 }
