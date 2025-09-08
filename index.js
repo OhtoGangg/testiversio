@@ -100,7 +100,12 @@ client.once('ready', async () => {
                     // Tarkistetaan ehdot ennen ilmoituksen lähettämistä
                     if (isLive && !currentlyLive && isRSRP && isGTA) {
                         const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
-                        const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
+                     console.log(`Yritetään lähettää viesti ja lisätä rooli jäsenelle ${member.user.tag}`);
+const message = await channel.send(`${member.user.username} aloitti striimin! Katso tästä: ${getTwitchUrl(twitchUsername)}`);
+console.log(`Viestin lähetetty onnistuneesti. Viestin ID: ${message.id}`);
+// Lisätään rooli
+await member.roles.add(LIVESSA_ROLE_ID);
+console.log(`Rooli lisätty käyttäjälle ${member.user.tag}`);
 
                         // Lisää "LIVESSÄ" rooli
                         await member.roles.add(LIVESSA_ROLE_ID);
