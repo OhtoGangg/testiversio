@@ -8,9 +8,10 @@ export class DiscordBot {
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages
-      ]
+        GatewayIntentBits.GuildMessages,
+      ],
     });
+
     this.twitchAPI = new TwitchAPI();
     this.checkInterval = null;
 
@@ -43,7 +44,7 @@ export class DiscordBot {
     const members = guild.members.cache.filter(m => m.roles.cache.has(watchedRoleId));
 
     for (const member of members.values()) {
-      const streamer = await storage.getStreamer(member.id);
+      let streamer = storage.streamers[member.id];
       if (!streamer?.twitchUsername) continue;
 
       const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
@@ -53,16 +54,21 @@ export class DiscordBot {
       const announceChannel = guild.channels.cache.get(announceChannelId);
 
       if (isLive && !member.roles.cache.has(liveRoleId)) {
-        member.roles.add(liveRole);
+        await member.roles.add(liveRole);
         if (announceChannel) {
           const msg = await announceChannel.send(`${member.user.username} on nyt livenä! https://twitch.tv/${streamer.twitchUsername}`);
           storage.liveMessages[member.id] = msg.id;
+          storage.save();
         }
       } else if (!isLive && member.roles.cache.has(liveRoleId)) {
-        member.roles.remove(liveRole);
+        await member.roles.remove(liveRole);
         if (announceChannel && storage.liveMessages[member.id]) {
-          try { await announceChannel.messages.fetch(storage.liveMessages[member.id]).then(m => m.delete()); } catch {}
+          try { 
+            const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
+            await msg.delete(); 
+          } catch {}
           delete storage.liveMessages[member.id];
+          storage.save();
         }
       }
     }
