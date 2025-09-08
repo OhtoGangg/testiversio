@@ -1,144 +1,133 @@
-// Lisätään dotenv-tuki ympäristömuuttujille
+// ==============================
+// 1️⃣ ENV & moduulit
+// ==============================
 require('dotenv').config();
-
-// Palvelin
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
-
-const PORT = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-  res.end('<h1>Palvelu on käynnissä</h1>');
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Discord.js ja muu koodi
-const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const { Client, GatewayIntentBits } = require('discord.js');
 
-const TOKEN = process.env.DISCORD_TOKEN;
+// ==============================
+// 2️⃣ ENV-muuttujat
+// ==============================
+const PORT = process.env.PORT || 3000;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const GUILD_ID = process.env.GUILD_ID;
-const LIVESSA_ROLE_ID = process.env.LIVESSA_ROLE_ID;
+const LIVESSA_ROLE_ID = process.env.LIVE_ROLE_ID;
 const MAINOSTUS_CHANNEL_ID = process.env.MAINOSTUS_CHANNEL_ID;
 const STRIIMAAJA_ROLE_ID = process.env.STRIIMAAJA_ROLE_ID;
-const CLIENT_ID = process.env.DISCORD_APPLICATION_ID; // Sovelluksen ID
-const CLIENT_SECRET = process.env.CLIENT_SECRET; // Sovelluksen salaisuus
+const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/callback`;
+const TOKEN = process.env.DISCORD_TOKEN;
+const TWITCH_ACCESS_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 
+// ==============================
+// 3️⃣ Data.json
+// ==============================
 const dataFilePath = './data.json';
 let userData = {};
 
-// Ladataan data
-function loadData() {
-  try {
-    const rawData = fs.readFileSync(dataFilePath, 'utf8');
-    userData = JSON.parse(rawData);
-  } catch (err) {
-    console.log('Ei voitu lukea data.json-tiedostoa, luodaan uusi.');
-    userData = {};
-  }
+try {
+  userData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
+} catch {
+  userData = {};
 }
 
 function saveData() {
   fs.writeFileSync(dataFilePath, JSON.stringify(userData, null, 2));
 }
-loadData();
 
-const client = new Client({ intents: [
+// ==============================
+// 4️⃣ Discord-botti
+// ==============================
+const client = new Client({
+  intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates
-] });
+  ]
+});
 
-// OAuth2 palvelin osio
-const REDIRECT_URI = `http://localhost:${PORT}/callback`;
+client.once('ready', async () => {
+  console.log(`Kirjauduttu sisään ${client.user.tag}`);
+  const guild = await client.guilds.fetch(GUILD_ID);
+  await guild.members.fetch();
 
-// Näytetään OAuth2 kirjautumislinkki (esim. konsolissa)
-console.log(`Avaa selaimessa: http://localhost:${PORT}/auth`);
+  // Tässä voit laittaa Twitch-tarkistuksen tai roolien hallinnan
+});
 
-// Serverin request-handler
-server.on('request', async (req, res) => {
+// Bot login
+client.login(TOKEN);
+
+// ==============================
+// 5️⃣ HTTP-serveri (OAuth2)
+// ==============================
+const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url);
+
+  // --- /auth endpoint ---
   if (parsedUrl.pathname === '/auth') {
-    // Lähetetään OAuth2 kirjautumislinkki
     const authUrl = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
     res.writeHead(302, { 'Location': authUrl });
     res.end();
-  } else if (parsedUrl.pathname === '/callback') {
+  }
+  // --- /callback endpoint ---
+  else if (parsedUrl.pathname === '/callback') {
     const qs = querystring.parse(parsedUrl.query);
     const code = qs.code;
 
-    // Tokenin hakeminen
     try {
-      const tokenRes = await axios.post('https://discord.com/api/oauth2/token', querystring.stringify({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: REDIRECT_URI,
-        scope: 'identify guilds'
-      }), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
+      // Tokenin hakeminen
+      const tokenRes = await axios.post(
+        'https://discord.com/api/oauth2/token',
+        querystring.stringify({
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: REDIRECT_URI,
+          scope: 'identify guilds'
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
 
       const accessToken = tokenRes.data.access_token;
 
       // Käyttäjätietojen hakeminen
       const userRes = await axios.get('https://discord.com/api/users/@me', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
+        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
 
       const userId = userRes.data.id;
       const username = userRes.data.username;
 
-      // Tallennetaan data
-      userData[userId] = {
-        discordId: userId,
-        username: username,
-        twitchName: null,
-        _isLive: false,
-        _liveMessageId: null
-      };
+      // Tallennetaan data.json
+      userData[userId] = { discordId: userId, username, twitchName: null, _isLive: false, _liveMessageId: null };
       saveData();
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
       res.end(`<h1>Kiitos, ${username}! Kirjautuminen onnistui.</h1>`);
     } catch (err) {
-      console.error('OAuth2 token tai käyttäjätietojen haku epäonnistui:', err);
+      console.error('OAuth2 error:', err.response?.data || err);
       res.writeHead(500);
       res.end('Virhe tapahtui.');
     }
-  } else {
+  }
+  // --- muu ---
+  else {
     res.writeHead(404);
-    res.end();
+    res.end('404 - Not Found');
   }
 });
 
-// Discord-botin käynnistys
-client.once('ready', async () => {
-  console.log(`Kirjauduttu sisään ${client.user.tag}`);
-  const guild = await client.guilds.fetch(GUILD_ID);
-  const members = await guild.members.fetch();
+// Serverin käynnistys
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-  setInterval(async () => {
-    // Twitchin tarkistus ja roolien hallinta
-  }, 60000);
-});
-
-// Helper-funktio Twitch URL
-function getTwitchUrl(username) {
-  return `https://www.twitch.tv/${username}`;
-}
-
-// Botin login
-client.login(TOKEN);
+// ==============================
+// 6️⃣ Invite-link
+// ==============================
+console.log(`Lisää bot serverille: https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`);
