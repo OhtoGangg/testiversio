@@ -48,6 +48,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates
   ]
 });
@@ -57,7 +58,51 @@ client.once('ready', async () => {
   const guild = await client.guilds.fetch(GUILD_ID);
   await guild.members.fetch();
 
-  // Tässä voit laittaa Twitch-tarkistuksen tai roolien hallinnan
+  // --- Twitch-liven tarkistus ---
+  setInterval(async () => {
+    for (const userId in userData) {
+      const twitchName = userData[userId].twitchName;
+      if (!twitchName) continue;
+
+      try {
+        // Haetaan Twitch-stream info
+        const streamRes = await axios.get(`https://api.twitch.tv/helix/streams?user_login=${twitchName}`, {
+          headers: {
+            'Client-ID': TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${TWITCH_ACCESS_TOKEN}`
+          }
+        });
+
+        const isLive = streamRes.data.data.length > 0;
+        const guildMember = await guild.members.fetch(userId);
+
+        if (isLive && !userData[userId]._isLive) {
+          // Käyttäjä aloitti striimaamisen
+          await guildMember.roles.add(LIVESSA_ROLE_ID);
+          const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+          const message = await channel.send(`🔴 ${guildMember.user.username} on nyt **livenä**! https://twitch.tv/${twitchName}`);
+          userData[userId]._isLive = true;
+          userData[userId]._liveMessageId = message.id;
+          saveData();
+        } else if (!isLive && userData[userId]._isLive) {
+          // Käyttäjä lopetti striimaamisen
+          await guildMember.roles.remove(LIVESSA_ROLE_ID);
+          const channel = await guild.channels.fetch(MAINOSTUS_CHANNEL_ID);
+          if (userData[userId]._liveMessageId) {
+            try { 
+              const msg = await channel.messages.fetch(userData[userId]._liveMessageId);
+              await msg.delete();
+            } catch {}
+            userData[userId]._liveMessageId = null;
+          }
+          userData[userId]._isLive = false;
+          saveData();
+        }
+      } catch (err) {
+        console.error('Twitch API error:', err.response?.data || err);
+      }
+    }
+  }, 60000); // 1 minuutti
 });
 
 // Bot login
@@ -69,19 +114,15 @@ client.login(TOKEN);
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url);
 
-  // --- /auth endpoint ---
   if (parsedUrl.pathname === '/auth') {
     const authUrl = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
     res.writeHead(302, { 'Location': authUrl });
     res.end();
-  }
-  // --- /callback endpoint ---
-  else if (parsedUrl.pathname === '/callback') {
+  } else if (parsedUrl.pathname === '/callback') {
     const qs = querystring.parse(parsedUrl.query);
     const code = qs.code;
 
     try {
-      // Tokenin hakeminen
       const tokenRes = await axios.post(
         'https://discord.com/api/oauth2/token',
         querystring.stringify({
@@ -97,7 +138,6 @@ const server = http.createServer(async (req, res) => {
 
       const accessToken = tokenRes.data.access_token;
 
-      // Käyttäjätietojen hakeminen
       const userRes = await axios.get('https://discord.com/api/users/@me', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
@@ -106,7 +146,9 @@ const server = http.createServer(async (req, res) => {
       const username = userRes.data.username;
 
       // Tallennetaan data.json
-      userData[userId] = { discordId: userId, username, twitchName: null, _isLive: false, _liveMessageId: null };
+      if (!userData[userId]) userData[userId] = { twitchName: null, _isLive: false, _liveMessageId: null };
+      userData[userId].discordId = userId;
+      userData[userId].username = username;
       saveData();
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
@@ -116,9 +158,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500);
       res.end('Virhe tapahtui.');
     }
-  }
-  // --- muu ---
-  else {
+  } else {
     res.writeHead(404);
     res.end('404 - Not Found');
   }
