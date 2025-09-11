@@ -19,13 +19,10 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return; // Älä reagoi omiin viesteihin
 
-    // Esimerkki komento linked accounts hakemiseen
-    if (message.content === '!linked') {
-        try {
-            // Hae käyttäjän tiedot
-            const user = await message.author.fetch();
-
-            // Tarkista, onko käyttäjä linkittänyt tilinsä
+    try {
+        // Komento: !linked
+        if (message.content === '!linked') {
+            const user = await client.users.fetch(message.author.id);
             const connections = await user.fetchConnections();
 
             if (connections.size === 0) {
@@ -33,7 +30,6 @@ client.on('messageCreate', async message => {
                 return;
             }
 
-            // Etsi Twitch-yhteys
             const twitchConn = connections.find(conn => conn.type === 'twitch');
 
             if (twitchConn) {
@@ -41,9 +37,14 @@ client.on('messageCreate', async message => {
             } else {
                 message.channel.send('Ei Twitch-yhteyttä löytynyt.');
             }
-        } catch (error) {
-            console.error('Virhe linked accounts hakemisessa:', error);
-            message.channel.send('Virhe linked accounts hakemisessa. Varmista, että sinulla on oikeudet ja tilisi on linkitetty.');
         }
+
+        // Komento: !status
+        if (message.content === '!status') {
+            message.channel.send('Kusipaskakännit vaan ja vetoja!');
+        }
+    } catch (error) {
+        console.error('Virhe komennossa:', error);
+        message.channel.send('Botti lähti lomalle, pärjätkää vitun näädät!');
     }
 });
