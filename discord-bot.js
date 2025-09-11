@@ -45,7 +45,7 @@ export class DiscordBot {
        if (message.channel.send('paska botti')) {
     await message.channel.send('Pidä turpas kiinni! Mulla on sun IP-osoite, en lähtis fronttaa');
       }
-    });
+    };
   }
 
   async initialize() {
