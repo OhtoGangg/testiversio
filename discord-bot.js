@@ -22,15 +22,16 @@ export class DiscordBot {
       this.startStreamMonitoring();
     });
 
-    // Lisätty komentoihin liittyvä kuuntelija
+       // Lisätty komentoihin liittyvä kuuntelija
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return; // Älä vastaa botin omiin viesteihin
 
       const content = message.content.toLowerCase();
-
+ if (content === 'paska botti') {
+        await message.channel.send('Pidä turpas kiinni! Mulla on sun IP-osoite, en lähtis fronttaa...'); // Muokkaa haluamaksesi
+      }
+      
       if (content === '!linked') {
-        // Tässä voit lisätä logiikan linkitettyjen jäsenien hakemiseen
-        // Esimerkki: vastaa yksinkertaisesti
         await message.channel.send('Linkitetyt jäsenet: ...'); // Muokkaa haluamaksesi
       }
 
@@ -41,12 +42,10 @@ export class DiscordBot {
         } catch (err) {
           await message.channel.send('Botti lähti lomalle, pärjätkää vitun näädät!');
         }
-        
-       if (message.channel.send('paska botti')) {
-    await message.channel.send('Pidä turpas kiinni! Mulla on sun IP-osoite, en lähtis fronttaa');
       }
-    };
+    });
   }
+
 
   async initialize() {
     const token = process.env.DISCORD_BOT_TOKEN;
