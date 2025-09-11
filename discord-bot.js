@@ -10,6 +10,7 @@ export class DiscordBot {
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent, // Varmista, että tämä intent on käytössä
       ],
     });
 
@@ -19,6 +20,28 @@ export class DiscordBot {
     this.client.on('ready', () => {
       console.log(`Logged in as ${this.client.user.tag}`);
       this.startStreamMonitoring();
+    });
+
+    // Lisätty komentoihin liittyvä kuuntelija
+    this.client.on('messageCreate', async (message) => {
+      if (message.author.bot) return; // Älä vastaa botin omiin viesteihin
+
+      const content = message.content.toLowerCase();
+
+      if (content === '!linked') {
+        // Tässä voit lisätä logiikan linkitettyjen jäsenien hakemiseen
+        // Esimerkki: vastaa yksinkertaisesti
+        await message.channel.send('Linkitetyt jäsenet: ...'); // Muokkaa haluamaksesi
+      }
+
+      if (content === '!status') {
+        try {
+          // Voit lisätä tarkastuksia tähän
+          await message.channel.send('Kusipaskakännit vaan ja vetoja!');
+        } catch (err) {
+          await message.channel.send('Botti lähti lomalle, pärjätkää vitun näädät!');
+        }
+      }
     });
   }
 
@@ -57,7 +80,8 @@ export class DiscordBot {
 
       const isLive = !!isQualifyingStream;
 
-      const liveRole = guild.roles.cache.get(liveRoleId);
+      const guildRoles = guild.roles.cache;
+      const liveRole = guildRoles.get(liveRoleId);
       const announceChannel = guild.channels.cache.get(announceChannelId);
 
       if (isLive && !member.roles.cache.has(liveRoleId)) {
