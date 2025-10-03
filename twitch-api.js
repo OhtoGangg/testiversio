@@ -3,24 +3,54 @@ import fetch from 'node-fetch';
 export class TwitchAPI {
   constructor() {
     this.clientId = process.env.TWITCH_CLIENT_ID || '';
+    this.clientSecret = process.env.TWITCH_CLIENT_SECRET || '';
     this.accessToken = process.env.TWITCH_ACCESS_TOKEN || '';
     this.baseURL = 'https://api.twitch.tv/helix';
-    if (!this.clientId || !this.accessToken) {
-      console.error('Missing Twitch API credentials.');
+
+    if (!this.clientId || !this.clientSecret) {
+      console.error('⚠️ Missing Twitch API credentials (Client ID or Client Secret).');
     }
   }
 
+  // Hakee uuden access tokenin automaattisesti
+  async refreshToken() {
+    if (!this.clientId || !this.clientSecret) throw new Error('Missing Twitch Client ID/Secret');
+    const params = new URLSearchParams();
+    params.append('client_id', this.clientId);
+    params.append('client_secret', this.clientSecret);
+    params.append('grant_type', 'client_credentials');
+
+    const res = await fetch(`https://id.twitch.tv/oauth2/token`, {
+      method: 'POST',
+      body: params
+    });
+
+    if (!res.ok) throw new Error(`Twitch token error: ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    this.accessToken = data.access_token;
+    console.log('🔑 Twitch access token päivitetty');
+    return this.accessToken;
+  }
+
   async makeRequest(endpoint) {
-    if (!this.clientId || !this.accessToken) {
-      throw new Error('Twitch API credentials not configured');
-    }
+    if (!this.accessToken) await this.refreshToken();
+
     const res = await fetch(`${this.baseURL}${endpoint}`, {
       headers: {
         'Client-ID': this.clientId,
         'Authorization': `Bearer ${this.accessToken}`,
       },
     });
-    if (!res.ok) throw new Error(`Twitch API error: ${res.status} ${res.statusText}`);
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        // Token vanhentunut, yritä uudelleen
+        await this.refreshToken();
+        return this.makeRequest(endpoint);
+      }
+      throw new Error(`Twitch API error: ${res.status} ${res.statusText}`);
+    }
+
     return res.json();
   }
 
