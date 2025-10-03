@@ -40,9 +40,20 @@ export class DiscordBot {
       const watchedRoleId = storage.botSettings?.watchedRoleId;
       if (!watchedRoleId) return;
 
+      // STRIIMAAJA-roolin lisäys
       if (!oldMember.roles.cache.has(watchedRoleId) && newMember.roles.cache.has(watchedRoleId)) {
         console.log(`🟢 ${newMember.user.username} sai STRIIMAAJA-roolin, tarkistetaan striimi heti...`);
         await this.checkMemberLiveStatus(newMember);
+      }
+
+      // STRIIMAAJA-roolin poisto
+      if (oldMember.roles.cache.has(watchedRoleId) && !newMember.roles.cache.has(watchedRoleId)) {
+        console.log(`🔴 ${newMember.user.username} menetti STRIIMAAJA-roolin.`);
+        const liveRoleId = storage.botSettings?.liveRoleId;
+        if (newMember.roles.cache.has(liveRoleId)) {
+          await newMember.roles.remove(liveRoleId);
+          console.log(`📴 ${newMember.user.username} poistettu LIVESSÄ-roolista roolin poiston vuoksi.`);
+        }
       }
     });
   }
@@ -129,8 +140,7 @@ export class DiscordBot {
             .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${twitchUsername})`)
             .setThumbnail(member.user.displayAvatarURL())
             .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
-            .setTimestamp()
-            .setFooter({ text: 'RSRP Live-seuranta 🔴' });
+            .setTimestamp(); // Footer poistettu
 
           const msg = await announceChannel.send({ embeds: [embed] });
           storage.liveMessages[member.id] = msg.id;
