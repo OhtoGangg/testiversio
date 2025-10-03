@@ -1,5 +1,5 @@
 // discord-bot.js
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 import { storage } from './storage.js';
 import { TwitchAPI } from './twitch-api.js';
 
@@ -10,59 +10,34 @@ export class DiscordBot {
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // viestien kuuntelua varten
+        GatewayIntentBits.MessageContent,
       ],
     });
 
     this.twitchAPI = new TwitchAPI();
     this.checkInterval = null;
 
-    // ✅ Uusi, oikea tapa Discord.js v15+
-    this.client.once('clientReady', () => {
+    this.client.on('ready', () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
       this.startStreamMonitoring();
     });
 
-    // 🔹 Varmuuden vuoksi legacy fallback (jos käytössä vanhempi versio)
-    this.client.once('ready', () => {
-      console.log(`✅ Logged in as ${this.client.user.tag} (legacy ready-event)`);
-      this.startStreamMonitoring();
-    });
-
-    // 💬 Komentojen käsittely
+    // 💬 Komennot
     this.client.on('messageCreate', async (message) => {
-      if (message.author.bot) return; // ei vastaa muille boteille
+      if (message.author.bot) return;
 
       const content = message.content.toLowerCase();
 
       if (content === 'paska botti') {
-        await message.channel.send('Pidä turpas kiinni! Mulla on sun IP-osoite, en lähtis fronttaa...');
+        await message.channel.send('Pidä turpas kiinni! 😤');
       }
 
       if (content === '!linked') {
-        const linkedUsers = Object.entries(storage.streamers)
-          .map(([id, data]) => `<@${id}> → ${data.twitchUsername || '❌ Ei linkitetty'}`)
-          .join('\n') || 'Ei yhtään linkitettyä käyttäjää.';
-        await message.channel.send(`🔗 **Linkitetyt jäsenet:**\n${linkedUsers}`);
+        await message.channel.send('Linkitetyt jäsenet: ...');
       }
 
       if (content === '!status') {
-        try {
-          await message.channel.send('Kusipaskakännit vaan ja vetoja!');
-        } catch (err) {
-          await message.channel.send('Botti lähti lomalle, pärjätkää vitun näädät!');
-        }
-      }
-
-      // 💡 Lisäys: mahdollistaa Twitch-linkityksen Discord-komennolla
-      if (content.startsWith('!link ')) {
-        const twitchName = content.split(' ')[1];
-        if (!twitchName) return message.reply('⚠️ Anna Twitch-nimi! Käyttö: `!link twitchnimesi`');
-
-        storage.streamers[message.author.id] = { twitchUsername: twitchName };
-        storage.save();
-
-        await message.reply(`✅ Twitch-nimi **${twitchName}** linkitetty onnistuneesti!`);
+        await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
       }
     });
   }
@@ -80,10 +55,10 @@ export class DiscordBot {
   }
 
   async checkAllStreamers() {
-    console.log('\n🔍 Tarkistetaan striimaajat...');
+    console.log('🔍 Tarkistetaan striimaajat...');
     const guild = this.client.guilds.cache.first();
     if (!guild) {
-      console.log('⚠️ Ei löytynyt guildia (palvelinta)');
+      console.log('⚠️ Ei löytynyt guildia');
       return;
     }
 
@@ -93,11 +68,7 @@ export class DiscordBot {
 
     await guild.members.fetch();
     const members = guild.members.cache.filter(m => m.roles.cache.has(watchedRoleId));
-
     console.log(`👥 Tarkistetaan ${members.size} striimaajaa, joilla on STRIIMAAJA-rooli.`);
-
-    let liveCount = 0;
-    let totalCount = members.size;
 
     for (const member of members.values()) {
       const streamer = storage.streamers[member.id];
@@ -106,48 +77,59 @@ export class DiscordBot {
         continue;
       }
 
-      console.log(`🎯 Tarkistetaan ${member.user.username} (${streamer.twitchUsername}) Twitchissä...`);
+      console.log(`🎯 Tarkistetaan ${streamer.twitchUsername} (${member.user.username}) Twitchissä...`);
+
       const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
 
-      const isQualifyingStream =
-        streamData &&
+      const isQualifyingStream = streamData &&
         streamData.game_name === 'Grand Theft Auto V' &&
         (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
 
       const isLive = !!isQualifyingStream;
-      const liveRole = guild.roles.cache.get(liveRoleId);
       const announceChannel = guild.channels.cache.get(announceChannelId);
 
-      if (isLive) {
-        liveCount++;
-        console.log(`✅ ${member.user.username} on LIVE (${streamData.title})`);
-        if (!member.roles.cache.has(liveRoleId)) {
-          await member.roles.add(liveRole);
-          if (announceChannel) {
-            const msg = await announceChannel.send(
-              `🎥 **${member.user.username}** on nyt livenä!\n🔗 https://twitch.tv/${streamer.twitchUsername}`
-            );
-            storage.liveMessages[member.id] = msg.id;
-            storage.save();
-          }
+      // Jos käyttäjä on livenä (ja täyttää ehdot)
+      if (isLive && !member.roles.cache.has(liveRoleId)) {
+        console.log(`✅ ${member.user.username} on LIVE (RSRP + GTA V)`);
+
+        await member.roles.add(liveRoleId);
+
+        // Luo embed Twitch-viesti
+        const embed = new EmbedBuilder()
+          .setColor('#9146FF')
+          .setTitle(`${streamData.title}`)
+          .setURL(`https://twitch.tv/${streamer.twitchUsername}`)
+          .setAuthor({ name: `${member.user.username} on nyt livenä!`, iconURL: member.user.displayAvatarURL() })
+          .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${streamer.twitchUsername})`)
+          .setThumbnail(member.user.displayAvatarURL())
+          .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
+          .setTimestamp()
+          .setFooter({ text: 'RSRP Live-seuranta 🔴' });
+
+        const msg = await announceChannel.send({ embeds: [embed] });
+        storage.liveMessages[member.id] = msg.id;
+        storage.save();
+      }
+
+      // Jos käyttäjä ei enää ole livenä
+      else if (!isLive && member.roles.cache.has(liveRoleId)) {
+        console.log(`📴 ${member.user.username} ei ole enää livenä.`);
+        await member.roles.remove(liveRoleId);
+
+        // Poistetaan aiempi viesti
+        if (announceChannel && storage.liveMessages[member.id]) {
+          try {
+            const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
+            await msg.delete();
+          } catch {}
+          delete storage.liveMessages[member.id];
+          storage.save();
         }
       } else {
-        console.log(`📴 ${member.user.username} ei ole livenä.`);
-        if (member.roles.cache.has(liveRoleId)) {
-          await member.roles.remove(liveRole);
-          if (announceChannel && storage.liveMessages[member.id]) {
-            try {
-              const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
-              await msg.delete();
-            } catch {}
-            delete storage.liveMessages[member.id];
-            storage.save();
-          }
-        }
+        console.log(`⏸️ ${member.user.username} ei ole LIVE (tai ei täytä ehtoja).`);
       }
     }
 
-    console.log(`📊 Yhteenveto: ${liveCount}/${totalCount} striimaajaa livenä.`);
     console.log('✅ Tarkistus valmis.\n');
   }
 }
