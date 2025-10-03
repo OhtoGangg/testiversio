@@ -22,7 +22,7 @@ export class DiscordBot {
       this.startStreamMonitoring();
     });
 
-    // 💬 Komennot
+    // Komennot
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
 
@@ -38,6 +38,17 @@ export class DiscordBot {
 
       if (content === '!status') {
         await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
+      }
+    });
+
+    // Reaaliaikainen roolimuutosten seuranta
+    this.client.on('guildMemberUpdate', async (oldMember, newMember) => {
+      const watchedRoleId = storage.botSettings?.watchedRoleId;
+
+      // STRIIMAAJA-roolin lisäys
+      if (!oldMember.roles.cache.has(watchedRoleId) && newMember.roles.cache.has(watchedRoleId)) {
+        console.log(`🟢 ${newMember.user.username} sai STRIIMAAJA-roolin, tarkistetaan striimi heti...`);
+        await this.checkMemberLiveStatus(newMember);
       }
     });
   }
@@ -66,35 +77,51 @@ export class DiscordBot {
     const liveRoleId = storage.botSettings?.liveRoleId;
     const announceChannelId = storage.botSettings?.announceChannelId;
 
+    if (!watchedRoleId) {
+      console.log('⚠️ watchedRoleId ei ole asetettu storageen!');
+      return;
+    }
+
     await guild.members.fetch();
     const members = guild.members.cache.filter(m => m.roles.cache.has(watchedRoleId));
-    console.log(`👥 Tarkistetaan ${members.size} striimaajaa, joilla on STRIIMAAJA-rooli.`);
+    console.log(`👥 STRIIMAAJA-roolissa jäseniä: ${members.size}`);
+    console.log('Jäsenten nimet:', members.map(m => m.user.username).join(', '));
+
+    let liveCount = 0;
 
     for (const member of members.values()) {
-      const streamer = storage.streamers[member.id];
-      if (!streamer?.twitchUsername) {
-        console.log(`⚠️ ${member.user.username} ei ole linkittänyt Twitch-nimeä.`);
-        continue;
-      }
+      await this.checkMemberLiveStatus(member);
+      if (member.roles.cache.has(liveRoleId)) liveCount++;
+    }
 
-      console.log(`🎯 Tarkistetaan ${streamer.twitchUsername} (${member.user.username}) Twitchissä...`);
+    console.log(`📊 Nyt livenä: ${liveCount} / ${members.size} striimaajaa.`);
+    console.log('✅ Tarkistus valmis.\n');
+  }
 
-      const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
+  async checkMemberLiveStatus(member) {
+    const liveRoleId = storage.botSettings?.liveRoleId;
+    const announceChannelId = storage.botSettings?.announceChannelId;
+    const guild = member.guild;
+    const announceChannel = guild.channels.cache.get(announceChannelId);
+    const streamer = storage.streamers[member.id];
 
-      const isQualifyingStream = streamData &&
-        streamData.game_name === 'Grand Theft Auto V' &&
-        (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
+    if (!streamer?.twitchUsername) {
+      console.log(`⚠️ ${member.user.username} ei ole linkittänyt Twitch-nimeä.`);
+      return;
+    }
 
-      const isLive = !!isQualifyingStream;
-      const announceChannel = guild.channels.cache.get(announceChannelId);
+    const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
 
-      // Jos käyttäjä on livenä (ja täyttää ehdot)
-      if (isLive && !member.roles.cache.has(liveRoleId)) {
-        console.log(`✅ ${member.user.username} on LIVE (RSRP + GTA V)`);
+    const isQualifyingStream = streamData &&
+      streamData.game_name === 'Grand Theft Auto V' &&
+      (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
 
-        await member.roles.add(liveRoleId);
+    // Mene liveen
+    if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
+      console.log(`✅ ${member.user.username} on LIVE (RSRP + GTA V)`);
+      await member.roles.add(liveRoleId);
 
-        // Luo embed Twitch-viesti
+      if (announceChannel) {
         const embed = new EmbedBuilder()
           .setColor('#9146FF')
           .setTitle(`${streamData.title}`)
@@ -110,26 +137,22 @@ export class DiscordBot {
         storage.liveMessages[member.id] = msg.id;
         storage.save();
       }
+    }
+    // Lopettaa live
+    else if (!isQualifyingStream && member.roles.cache.has(liveRoleId)) {
+      console.log(`📴 ${member.user.username} ei ole enää livenä.`);
+      await member.roles.remove(liveRoleId);
 
-      // Jos käyttäjä ei enää ole livenä
-      else if (!isLive && member.roles.cache.has(liveRoleId)) {
-        console.log(`📴 ${member.user.username} ei ole enää livenä.`);
-        await member.roles.remove(liveRoleId);
-
-        // Poistetaan aiempi viesti
-        if (announceChannel && storage.liveMessages[member.id]) {
-          try {
-            const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
-            await msg.delete();
-          } catch {}
-          delete storage.liveMessages[member.id];
-          storage.save();
+      if (announceChannel && storage.liveMessages[member.id]) {
+        try {
+          const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
+          await msg.delete();
+        } catch (err) {
+          console.log(`⚠️ Viestin poistaminen epäonnistui: ${err.message}`);
         }
-      } else {
-        console.log(`⏸️ ${member.user.username} ei ole LIVE (tai ei täytä ehtoja).`);
+        delete storage.liveMessages[member.id];
+        storage.save();
       }
     }
-
-    console.log('✅ Tarkistus valmis.\n');
   }
 }
