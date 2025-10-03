@@ -2,6 +2,7 @@
 import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 import { storage } from './storage.js';
 import { TwitchAPI } from './twitch-api.js';
+import fetch from 'node-fetch'; // Keep-alive pingille
 
 export class DiscordBot {
   constructor() {
@@ -143,15 +144,9 @@ export class DiscordBot {
           storage.liveMessages[member.id] = msg.id;
           storage.save();
         }
-      }
-
-      // Jos live ei täytä ehtoja
-      else if (!isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
+      } else if (!isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
         console.log(`🚫 ${member.user.username} on livenä, mutta striimi ei täytä ehtoja (ei GTA V tai ei RSRP).`);
-      }
-
-      // Lopeta live
-      else if (!streamData && member.roles.cache.has(liveRoleId)) {
+      } else if (!streamData && member.roles.cache.has(liveRoleId)) {
         console.log(`📴 ${member.user.username} lopetti striimin.`);
         await member.roles.remove(liveRoleId);
 
@@ -171,3 +166,14 @@ export class DiscordBot {
     }
   }
 }
+
+// 🔹 Keep-alive ping Renderille 5 minuutin välein
+const KEEP_ALIVE_URL = 'https://livebot-9vdn.onrender.com';
+setInterval(async () => {
+  try {
+    await fetch(KEEP_ALIVE_URL);
+    console.log('🟢 Keep-alive ping lähetetty Renderille');
+  } catch (err) {
+    console.log('⚠️ Keep-alive ping epäonnistui:', err.message);
+  }
+}, 1000 * 60 * 5); // 5 minuutin välein
