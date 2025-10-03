@@ -11,10 +11,11 @@ export class DiscordBot {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildPresences, // tarvitaan Twitch-aktiviteetin lukemiseen
       ],
     });
 
-    this.twitchAPI = new TwitchAPI();
+    this.twitchAPI = new TwitchAPI(); // käyttää sinun OAuth-tokeniasi
     this.checkInterval = null;
 
     this.client.on('ready', () => {
@@ -28,7 +29,6 @@ export class DiscordBot {
       const content = message.content.toLowerCase();
 
       if (content === 'paska botti') await message.channel.send('Pidä turpas kiinni! 😤');
-      if (content === '!linked') await message.channel.send('Linkitetyt jäsenet: ...');
       if (content === '!status') await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
     });
 
@@ -94,15 +94,21 @@ export class DiscordBot {
     const announceChannelId = storage.botSettings?.announceChannelId;
     const guild = member.guild;
     const announceChannel = guild.channels.cache.get(announceChannelId);
-    const streamer = storage.streamers[member.id];
 
-    if (!streamer?.twitchUsername) {
-      console.log(`⚠️ ${member.user.username} ei ole linkittänyt Twitch-nimeä.`);
+    // 1️⃣ Etsi Twitch-linkitys Discordin kautta
+    const twitchActivity = member.presence?.activities.find(
+      act => act.type === 1 && act.name.toLowerCase() === 'twitch'
+    );
+    if (!twitchActivity || !twitchActivity.url) {
+      console.log(`⚠️ ${member.user.username} ei ole linkittänyt Twitch-tiliä Discordiin.`);
       return;
     }
 
+    // Twitch-käyttäjänimi urlista
+    const twitchUsername = twitchActivity.url.split('/').pop();
+
     try {
-      const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
+      const streamData = await this.twitchAPI.getStreamData(twitchUsername);
 
       const isQualifyingStream = streamData &&
         streamData.game_name === 'Grand Theft Auto V' &&
@@ -117,9 +123,9 @@ export class DiscordBot {
           const embed = new EmbedBuilder()
             .setColor('#9146FF')
             .setTitle(`${streamData.title}`)
-            .setURL(`https://twitch.tv/${streamer.twitchUsername}`)
+            .setURL(`https://twitch.tv/${twitchUsername}`)
             .setAuthor({ name: `${member.user.username} on nyt livenä!`, iconURL: member.user.displayAvatarURL() })
-            .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${streamer.twitchUsername})`)
+            .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${twitchUsername})`)
             .setThumbnail(member.user.displayAvatarURL())
             .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
             .setTimestamp()
