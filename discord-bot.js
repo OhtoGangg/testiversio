@@ -25,25 +25,17 @@ export class DiscordBot {
     // Komennot
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
-
       const content = message.content.toLowerCase();
 
-      if (content === 'paska botti') {
-        await message.channel.send('Pidä turpas kiinni! 😤');
-      }
-
-      if (content === '!linked') {
-        await message.channel.send('Linkitetyt jäsenet: ...');
-      }
-
-      if (content === '!status') {
-        await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
-      }
+      if (content === 'paska botti') await message.channel.send('Pidä turpas kiinni! 😤');
+      if (content === '!linked') await message.channel.send('Linkitetyt jäsenet: ...');
+      if (content === '!status') await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
     });
 
     // Reaaliaikainen roolimuutosten seuranta
     this.client.on('guildMemberUpdate', async (oldMember, newMember) => {
       const watchedRoleId = storage.botSettings?.watchedRoleId;
+      if (!watchedRoleId) return;
 
       // STRIIMAAJA-roolin lisäys
       if (!oldMember.roles.cache.has(watchedRoleId) && newMember.roles.cache.has(watchedRoleId)) {
@@ -66,7 +58,6 @@ export class DiscordBot {
   }
 
   async checkAllStreamers() {
-    console.log('🔍 Tarkistetaan striimaajat...');
     const guild = this.client.guilds.cache.first();
     if (!guild) {
       console.log('⚠️ Ei löytynyt guildia');
@@ -110,49 +101,53 @@ export class DiscordBot {
       return;
     }
 
-    const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
+    try {
+      const streamData = await this.twitchAPI.getStreamData(streamer.twitchUsername);
 
-    const isQualifyingStream = streamData &&
-      streamData.game_name === 'Grand Theft Auto V' &&
-      (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
+      const isQualifyingStream = streamData &&
+        streamData.game_name === 'Grand Theft Auto V' &&
+        (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
 
-    // Mene liveen
-    if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-      console.log(`✅ ${member.user.username} on LIVE (RSRP + GTA V)`);
-      await member.roles.add(liveRoleId);
+      // Mene liveen
+      if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
+        console.log(`✅ ${member.user.username} on LIVE (RSRP + GTA V)`);
+        await member.roles.add(liveRoleId);
 
-      if (announceChannel) {
-        const embed = new EmbedBuilder()
-          .setColor('#9146FF')
-          .setTitle(`${streamData.title}`)
-          .setURL(`https://twitch.tv/${streamer.twitchUsername}`)
-          .setAuthor({ name: `${member.user.username} on nyt livenä!`, iconURL: member.user.displayAvatarURL() })
-          .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${streamer.twitchUsername})`)
-          .setThumbnail(member.user.displayAvatarURL())
-          .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
-          .setTimestamp()
-          .setFooter({ text: 'RSRP Live-seuranta 🔴' });
+        if (announceChannel) {
+          const embed = new EmbedBuilder()
+            .setColor('#9146FF')
+            .setTitle(`${streamData.title}`)
+            .setURL(`https://twitch.tv/${streamer.twitchUsername}`)
+            .setAuthor({ name: `${member.user.username} on nyt livenä!`, iconURL: member.user.displayAvatarURL() })
+            .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${streamer.twitchUsername})`)
+            .setThumbnail(member.user.displayAvatarURL())
+            .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
+            .setTimestamp()
+            .setFooter({ text: 'RSRP Live-seuranta 🔴' });
 
-        const msg = await announceChannel.send({ embeds: [embed] });
-        storage.liveMessages[member.id] = msg.id;
-        storage.save();
-      }
-    }
-    // Lopettaa live
-    else if (!isQualifyingStream && member.roles.cache.has(liveRoleId)) {
-      console.log(`📴 ${member.user.username} ei ole enää livenä.`);
-      await member.roles.remove(liveRoleId);
-
-      if (announceChannel && storage.liveMessages[member.id]) {
-        try {
-          const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
-          await msg.delete();
-        } catch (err) {
-          console.log(`⚠️ Viestin poistaminen epäonnistui: ${err.message}`);
+          const msg = await announceChannel.send({ embeds: [embed] });
+          storage.liveMessages[member.id] = msg.id;
+          storage.save();
         }
-        delete storage.liveMessages[member.id];
-        storage.save();
       }
+      // Lopeta live
+      else if (!isQualifyingStream && member.roles.cache.has(liveRoleId)) {
+        console.log(`📴 ${member.user.username} ei ole enää livenä.`);
+        await member.roles.remove(liveRoleId);
+
+        if (announceChannel && storage.liveMessages[member.id]) {
+          try {
+            const msg = await announceChannel.messages.fetch(storage.liveMessages[member.id]);
+            await msg.delete();
+          } catch (err) {
+            console.log(`⚠️ Viestin poistaminen epäonnistui: ${err.message}`);
+          }
+          delete storage.liveMessages[member.id];
+          storage.save();
+        }
+      }
+    } catch (err) {
+      console.log(`⚠️ Twitch API virhe ${member.user.username}: ${err.message}`);
     }
   }
 }
