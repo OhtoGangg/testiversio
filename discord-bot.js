@@ -18,8 +18,11 @@ export class DiscordBot {
     this.twitchAPI = new TwitchAPI(); // käyttää sinun OAuth-tokeniasi
     this.checkInterval = null;
 
-    this.client.on('ready', () => {
+    this.client.on('ready', async () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
+      await this.client.guilds.cache.forEach(async guild => {
+        await guild.members.fetch({ withPresences: true }); // fetchataan kaikki jäsenet presencen kanssa
+      });
       this.startStreamMonitoring();
     });
 
@@ -37,7 +40,6 @@ export class DiscordBot {
       const watchedRoleId = storage.botSettings?.watchedRoleId;
       if (!watchedRoleId) return;
 
-      // STRIIMAAJA-roolin lisäys
       if (!oldMember.roles.cache.has(watchedRoleId) && newMember.roles.cache.has(watchedRoleId)) {
         console.log(`🟢 ${newMember.user.username} sai STRIIMAAJA-roolin, tarkistetaan striimi heti...`);
         await this.checkMemberLiveStatus(newMember);
@@ -73,13 +75,12 @@ export class DiscordBot {
       return;
     }
 
-    await guild.members.fetch();
+    await guild.members.fetch({ withPresences: true });
     const members = guild.members.cache.filter(m => m.roles.cache.has(watchedRoleId));
     console.log(`👥 STRIIMAAJA-roolissa jäseniä: ${members.size}`);
     console.log('Jäsenten nimet:', members.map(m => m.user.username).join(', '));
 
     let liveCount = 0;
-
     for (const member of members.values()) {
       await this.checkMemberLiveStatus(member);
       if (member.roles.cache.has(liveRoleId)) liveCount++;
@@ -95,16 +96,16 @@ export class DiscordBot {
     const guild = member.guild;
     const announceChannel = guild.channels.cache.get(announceChannelId);
 
-    // 1️⃣ Etsi Twitch-linkitys Discordin kautta
+    // Etsi Twitch-linkitys Discordin kautta
     const twitchActivity = member.presence?.activities.find(
       act => act.type === 1 && act.name.toLowerCase() === 'twitch'
     );
+
     if (!twitchActivity || !twitchActivity.url) {
       console.log(`⚠️ ${member.user.username} ei ole linkittänyt Twitch-tiliä Discordiin.`);
       return;
     }
 
-    // Twitch-käyttäjänimi urlista
     const twitchUsername = twitchActivity.url.split('/').pop();
 
     try {
