@@ -122,8 +122,8 @@ export class DiscordBot {
       }
 
       const isQualifyingStream =
-        streamData.game_name === 'Grand Theft Auto V' &&
-        (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
+        streamData.game_name === 'Just Chatting' &&
+        (streamData.title.toLowerCase().includes('VOI') || streamData.title.toLowerCase().includes('tähän'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
         console.log(`✅ ${member.user.username} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
