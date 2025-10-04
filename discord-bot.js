@@ -152,21 +152,21 @@ export class DiscordBot {
       }
 
       const isQualifyingStream =
-        streamData.game_name === 'Software and Game Development' &&
-        (streamData.title.toLowerCase().includes('ei') ||
-          streamData.title.toLowerCase().includes('tähän'));
+        streamData.game_name === 'Grand Theft Auto V' &&
+        (streamData.title.toLowerCase().includes('RSRP') ||
+          streamData.title.toLowerCase().includes('#RSRP'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`✅ ${member.user.tag} täyttää ehdot (Software and Game Development + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
+        console.log(`✅ ${member.user.tag} täyttää ehdot (Grand Theft Auto V + RSRP) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
         await member.roles.add(liveRoleId);
 
         if (announceChannel) {
           const embed = new EmbedBuilder()
             .setColor('#9146FF')
-            .setTitle(streamData.title)
-            .setURL(`https://twitch.tv/${twitchUsername}`)
             .setAuthor({ name: `${member.user.username} on nyt livenä!`, iconURL: member.user.displayAvatarURL() })
             .setDescription(`🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ Klikkaa tästä: [Twitch-kanava](https://twitch.tv/${twitchUsername})`)
+            .setTitle(streamData.title)
+            .setURL(`https://twitch.tv/${twitchUsername}`)
             .setThumbnail(member.user.displayAvatarURL())
             .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
             .setTimestamp();
