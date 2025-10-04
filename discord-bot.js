@@ -21,10 +21,21 @@ export class DiscordBot {
 
     this.client.on('ready', async () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
-      await this.client.guilds.cache.forEach(async guild => {
+      // Haetaan jäsenet ja presence heti alussa
+      for (const guild of this.client.guilds.cache.values()) {
         await guild.members.fetch({ withPresences: true });
-      });
+      }
+      // Aloitetaan säännöllinen tarkistus
       this.startStreamMonitoring();
+
+      // Lisätään presenceUpdate-tapahtuma
+      this.client.on('presenceUpdate', async (oldPresence, newPresence) => {
+        const member = newPresence.member;
+        const watchedRoleId = storage.botSettings?.watchedRoleId;
+        if (!member || !member.roles.cache.has(watchedRoleId)) return;
+
+        await this.checkMemberLiveStatus(member);
+      });
     });
 
     this.client.on('messageCreate', async (message) => {
@@ -103,30 +114,39 @@ export class DiscordBot {
     const guild = member.guild;
     const announceChannel = guild.channels.cache.get(announceChannelId);
 
-    const twitchActivity = member.presence?.activities.find(act => act.type === 1 && act.url?.includes('twitch.tv'));
+    // Tarkistetaan presence ja aktiviteetit
+    const presence = member.presence;
+    if (!presence || !presence.activities) {
+      console.log(`Ei presencea tai aktiviteetteja: ${member.user.tag}`);
+      return;
+    }
+
+    const twitchActivity = presence.activities.find(
+      (act) => act.type === 1 && act.url?.includes('twitch.tv')
+    );
 
     if (!twitchActivity) {
-      console.log(`ℹ️ ${member.user.username} ei ole live-tilassa (twitch activitya ei havaittu).`);
+      console.log(`${member.user.tag} ei ole live Twitchissä (aktiviteettiä ei löytynyt).`);
       return;
     }
 
     const twitchUsername = twitchActivity.url.split('/').pop();
-    console.log(`🎥 ${member.user.username} on livenä: ${twitchActivity.url}`);
+    console.log(`${member.user.tag} on livenä: ${twitchActivity.url}`);
 
     try {
       const streamData = await this.twitchAPI.getStreamData(twitchUsername);
 
       if (!streamData) {
-        console.log(`⚠️ ${member.user.username}: Ei aktiivista striimiä Twitchissä.`);
+        console.log(`⚠️ ${member.user.tag}: Ei aktiivista striimiä Twitchissä.`);
         return;
       }
 
       const isQualifyingStream =
         streamData.game_name === 'Just Chatting' &&
-        (streamData.title.toLowerCase().includes('VOI') || streamData.title.toLowerCase().includes('tähän'));
+        (streamData.title.toLowerCase().includes('voi') || streamData.title.toLowerCase().includes('tähän'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`✅ ${member.user.username} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
+        console.log(`✅ ${member.user.tag} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
         await member.roles.add(liveRoleId);
 
         if (announceChannel) {
@@ -144,10 +164,8 @@ export class DiscordBot {
           storage.liveMessages[member.id] = msg.id;
           storage.save();
         }
-      } else if (!isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`🚫 ${member.user.username} on livenä, mutta striimi ei täytä ehtoja (ei Just Chatting tai ei 🔴).`);
-      } else if (!streamData && member.roles.cache.has(liveRoleId)) {
-        console.log(`📴 ${member.user.username} lopetti striimin.`);
+      } else if (!isQualifyingStream && member.roles.cache.has(liveRoleId)) {
+        console.log(`📴 ${member.user.tag} lopetti striimin.`);
         await member.roles.remove(liveRoleId);
 
         if (announceChannel && storage.liveMessages[member.id]) {
@@ -162,7 +180,7 @@ export class DiscordBot {
         }
       }
     } catch (err) {
-      console.log(`⚠️ Twitch API virhe ${member.user.username}: ${err.message}`);
+      console.log(`⚠️ Twitch API virhe ${member.user.tag}: ${err.message}`);
     }
   }
 }
