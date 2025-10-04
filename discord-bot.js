@@ -126,7 +126,7 @@ export class DiscordBot {
         (streamData.title.toLowerCase().includes('rsrp') || streamData.title.toLowerCase().includes('#rsrp'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`✅ ${member.user.username} täyttää ehdot (GTA V + RSRP) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
+        console.log(`✅ ${member.user.username} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
         await member.roles.add(liveRoleId);
 
         if (announceChannel) {
@@ -145,7 +145,7 @@ export class DiscordBot {
           storage.save();
         }
       } else if (!isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`🚫 ${member.user.username} on livenä, mutta striimi ei täytä ehtoja (ei GTA V tai ei RSRP).`);
+        console.log(`🚫 ${member.user.username} on livenä, mutta striimi ei täytä ehtoja (ei Just Chatting tai ei 🔴).`);
       } else if (!streamData && member.roles.cache.has(liveRoleId)) {
         console.log(`📴 ${member.user.username} lopetti striimin.`);
         await member.roles.remove(liveRoleId);
