@@ -43,11 +43,13 @@ export class DiscordBot {
       const watchedRoleId = storage.botSettings?.watchedRoleId;
       if (!watchedRoleId) return;
 
+      // STRIIMAAJA-rooli lisätty
       if (!oldMember.roles.cache.has(watchedRoleId) && newMember.roles.cache.has(watchedRoleId)) {
         console.log(`🟢 ${newMember.user.username} sai STRIIMAAJA-roolin, tarkistetaan striimi heti...`);
         await this.checkMemberLiveStatus(newMember);
       }
 
+      // STRIIMAAJA-rooli poistettu
       if (oldMember.roles.cache.has(watchedRoleId) && !newMember.roles.cache.has(watchedRoleId)) {
         console.log(`🔴 ${newMember.user.username} menetti STRIIMAAJA-roolin.`);
         const liveRoleId = storage.botSettings?.liveRoleId;
@@ -101,21 +103,33 @@ export class DiscordBot {
     console.log('✅ Tarkistus valmis.\n');
   }
 
+  // 🔎 Päivitetty versio, jossa laajennettu tunnistus + debug-logi
   async checkMemberLiveStatus(member) {
     const liveRoleId = storage.botSettings?.liveRoleId;
     const announceChannelId = storage.botSettings?.announceChannelId;
     const guild = member.guild;
     const announceChannel = guild.channels.cache.get(announceChannelId);
 
-    // Tarkistetaan presence ja aktiviteetit
     const presence = member.presence;
-    if (!presence || !presence.activities) {
+
+    if (!presence || !presence.activities || presence.activities.length === 0) {
       console.log(`Ei presencea tai aktiviteetteja: ${member.user.tag}`);
       return;
     }
 
+    // DEBUG: tulosta kaikki aktiviteetit
+    console.log(`🎯 Presence-aktiviteetit käyttäjälle ${member.user.tag}:`);
+    for (const act of presence.activities) {
+      console.log(
+        `- Tyyppi: ${act.type}, Nimi: ${act.name}, URL: ${act.url || 'ei urlia'}, State: ${act.state || 'ei statea'}`
+      );
+    }
+
+    // Etsi Twitch-aktiviteetti
     const twitchActivity = presence.activities.find(
-      (act) => act.type === 1 && act.url?.includes('twitch.tv')
+      (act) =>
+        (act.type === 1 && act.url?.includes('twitch.tv')) || // Discordin virallinen Twitch-stream
+        (act.name?.toLowerCase().includes('twitch') && act.state?.toLowerCase().includes('live')) // Varmistus, jos näkyy erikoisesti
     );
 
     if (!twitchActivity) {
@@ -123,8 +137,11 @@ export class DiscordBot {
       return;
     }
 
-    const twitchUsername = twitchActivity.url.split('/').pop();
-    console.log(`${member.user.tag} on livenä: ${twitchActivity.url}`);
+    const twitchUsername =
+      twitchActivity.url?.split('/').pop() ||
+      member.user.username.toLowerCase();
+
+    console.log(`${member.user.tag} on livenä: ${twitchActivity.url || '(ei urlia, yritetään Twitch API:sta)'}`);
 
     try {
       const streamData = await this.twitchAPI.getStreamData(twitchUsername);
@@ -136,7 +153,8 @@ export class DiscordBot {
 
       const isQualifyingStream =
         streamData.game_name === 'Just Chatting' &&
-        (streamData.title.toLowerCase().includes('voi') || streamData.title.toLowerCase().includes('tähän'));
+        (streamData.title.toLowerCase().includes('voi') ||
+          streamData.title.toLowerCase().includes('tähän'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
         console.log(`✅ ${member.user.tag} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
