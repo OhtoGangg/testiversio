@@ -152,12 +152,12 @@ export class DiscordBot {
       }
 
       const isQualifyingStream =
-        streamData.game_name === 'Just Chatting' &&
-        (streamData.title.toLowerCase().includes('voi') ||
+        streamData.game_name === 'Software and Game Development' &&
+        (streamData.title.toLowerCase().includes('ei') ||
           streamData.title.toLowerCase().includes('tähän'));
 
       if (isQualifyingStream && !member.roles.cache.has(liveRoleId)) {
-        console.log(`✅ ${member.user.tag} täyttää ehdot (Just Chatting + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
+        console.log(`✅ ${member.user.tag} täyttää ehdot (Software and Game Development + 🔴) → annetaan LIVESSÄ-rooli ja postataan mainos.`);
         await member.roles.add(liveRoleId);
 
         if (announceChannel) {
