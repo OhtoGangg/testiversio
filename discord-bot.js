@@ -21,29 +21,16 @@ export class DiscordBot {
 
     this.client.on('ready', async () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
+
       // Haetaan jäsenet ja presence heti alussa
       for (const guild of this.client.guilds.cache.values()) {
         await guild.members.fetch({ withPresences: true });
       }
+
       // Aloitetaan säännöllinen tarkistus
       this.startStreamMonitoring();
-
-  // Tämä on checkMemberLiveStatus-funktiosi
-async checkMemberLiveStatus(member) {
-  const presence = member.presence;
-  console.log(`Presence for ${member.user.tag}:`, presence);
-  
-  if (presence && presence.activities) {
-    presence.activities.forEach(act => {
-      console.log(`Activity: type=${act.type}, url=${act.url}, name=${act.name}`);
     });
-  } else {
-    console.log(`Ei aktiviteetteja saatavilla ${member.user.tag}`);
-  }
-  
-  // Jatka nykyistä logiikkaasi tästä eteenpäin
-  // esim. Twitch-aktiviteetin tarkistus jne.
-}
+
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
       const content = message.content.toLowerCase();
