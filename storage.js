@@ -10,7 +10,7 @@ try {
 // Kaikki ID:t ja tokenit luetaan environment-muuttujista
 export const storage = {
   botSettings: {
-    watchedRoleId: process.env.STRIIMAAJA_ROLE_ID,    // STRIIMAAJA-roolin ID
+    watchedRoleId: process.env.SISALLONTUOTTAJA_ROLE_ID,    // STRIIMAAJA-roolin ID
     liveRoleId: process.env.LIVE_ROLE_ID,             // LIVESSÄ-roolin ID
     announceChannelId: process.env.MAINOSTUS_CHANNEL_ID, // Mainoskanavan ID
     hostRoleId: '1026641041396338710', // JUONTAJA-rooli (sinun oma)
