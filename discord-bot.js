@@ -19,8 +19,13 @@ export class DiscordBot {
     this.twitchAPI = new TwitchAPI();
     this.checkInterval = null;
 
-    // Lue .env-muuttuja
-    this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID;
+    // Lue .env-arvot
+    this.hostRoleId = process.env.HOST_ROLE_ID; // JUONTAJA-rooli
+    this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID; // SISÄLLÖNTUOTTAJA-rooli
+    this.liveRoleId = process.env.LIVE_ROLE_ID;
+    this.ilmoituksetChannelId = process.env.ILMOITUKSET_CHANNEL_ID; // JUONTAJILLE
+    this.mainostusChannelId = process.env.MAINOSTUS_CHANNEL_ID; // SISÄLLÖNTUOTTAJILLE
+    this.checkIntervalSeconds = parseInt(process.env.CHECK_INTERVAL_SECONDS || '60', 10);
 
     this.client.on('ready', async () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
@@ -45,9 +50,8 @@ export class DiscordBot {
   }
 
   startStreamMonitoring() {
-    const intervalSeconds = storage.botSettings?.checkIntervalSeconds || 60;
-    console.log(`🕐 Aloitetaan striimien seuranta (${intervalSeconds}s välein)...`);
-    this.checkInterval = setInterval(() => this.checkAllStreamers(), intervalSeconds * 1000);
+    console.log(`🕐 Aloitetaan striimien seuranta (${this.checkIntervalSeconds}s välein)...`);
+    this.checkInterval = setInterval(() => this.checkAllStreamers(), this.checkIntervalSeconds * 1000);
   }
 
   async checkAllStreamers() {
@@ -57,17 +61,13 @@ export class DiscordBot {
     await guild.members.fetch({ withPresences: true });
 
     const members = guild.members.cache.filter(m =>
-      m.roles.cache.has(storage.botSettings.hostRoleId) ||
-      m.roles.cache.has(this.contentCreatorRoleId)
+      m.roles.cache.has(this.hostRoleId) || m.roles.cache.has(this.contentCreatorRoleId)
     );
-
-    console.log(`👥 Tarkkailtavia striimaajia: ${members.size}`);
-    console.log('👤 Jäsenet:', members.map(m => m.user.username).join(', '));
 
     let liveCount = 0;
     for (const member of members.values()) {
-      await this.checkMemberLiveStatus(member);
-      if (member.roles.cache.has(storage.botSettings.liveRoleId)) liveCount++;
+      const isLive = await this.checkMemberLiveStatus(member);
+      if (isLive) liveCount++;
     }
 
     console.log(`📊 Nyt livenä: ${liveCount} / ${members.size} tarkkailtavaa.`);
@@ -75,89 +75,83 @@ export class DiscordBot {
   }
 
   async checkMemberLiveStatus(member) {
-    const { liveRoleId, hostRoleId } = storage.botSettings;
     const guild = member.guild;
-
-    const hostAnnounceChannel = guild.channels.cache.get('1026638924870856724'); // juontaja
-    const contentAnnounceChannel = guild.channels.cache.get('1064874379399409664'); // sisällöntuottaja
-
+    const ilmoituksetChannel = guild.channels.cache.get(this.ilmoituksetChannelId);
+    const mainostusChannel = guild.channels.cache.get(this.mainostusChannelId);
     const presence = member.presence;
 
     if (!presence || !presence.activities?.length) {
-      console.log(`Ei presencea tai aktiviteetteja: ${member.user.tag}`);
-      await this.removeLiveRole(member, liveRoleId, hostAnnounceChannel, contentAnnounceChannel);
-      return;
-    }
-
-    console.log(`🎯 Presence-aktiviteetit käyttäjälle ${member.user.tag}:`);
-    for (const act of presence.activities) {
-      console.log(`- Tyyppi: ${act.type}, Nimi: ${act.name}, URL: ${act.url || 'ei urlia'}, State: ${act.state || 'ei statea'}`);
+      await this.removeLiveRole(member, ilmoituksetChannel, mainostusChannel);
+      return false;
     }
 
     const twitchActivity = presence.activities.find(act => act.type === 1 && act.url?.includes('twitch.tv'));
-
     if (!twitchActivity) {
-      console.log(`${member.user.tag} ei ole live Twitchissä.`);
-      await this.removeLiveRole(member, liveRoleId, hostAnnounceChannel, contentAnnounceChannel);
-      return;
+      await this.removeLiveRole(member, ilmoituksetChannel, mainostusChannel);
+      return false;
     }
 
     const twitchUsername = twitchActivity.url.split('/').pop()?.toLowerCase() || member.user.username.toLowerCase();
 
     try {
       const streamData = await this.twitchAPI.getStreamData(twitchUsername);
-      if (!streamData) {
-        console.log(`⚠️ ${member.user.tag}: Ei aktiivista striimiä Twitchissä.`);
-        return;
-      }
+      if (!streamData) return false;
 
-      const isHost = member.roles.cache.has(hostRoleId);
+      const isHost = member.roles.cache.has(this.hostRoleId);
       const isContentCreator = member.roles.cache.has(this.contentCreatorRoleId);
 
       if (isHost) {
-        await this.handleLivePost(member, twitchUsername, streamData, hostAnnounceChannel, liveRoleId, 'JUONTAJA');
+        console.log(`🎯 LIVE: JUONTAJA ${member.user.tag}`);
+        await this.handleLivePost(member, twitchUsername, streamData, ilmoituksetChannel, 'JUONTAJA');
       } else if (isContentCreator) {
-        await this.handleLivePost(member, twitchUsername, streamData, contentAnnounceChannel, liveRoleId, 'SISÄLLÖNTUOTTAJA');
+        console.log(`🎯 LIVE: SISÄLLÖNTUOTTAJA ${member.user.tag}`);
+        await this.handleLivePost(member, twitchUsername, streamData, mainostusChannel, 'SISÄLLÖNTUOTTAJA');
       }
+
+      return true;
     } catch (err) {
       console.log(`⚠️ Twitch API virhe ${member.user.tag}: ${err.message}`);
+      return false;
     }
   }
 
-  async handleLivePost(member, twitchUsername, streamData, announceChannel, liveRoleId, type) {
+  async handleLivePost(member, twitchUsername, streamData, announceChannel, type) {
     if (!announceChannel) return;
+    if (member.roles.cache.has(this.liveRoleId)) return;
 
-    if (!member.roles.cache.has(liveRoleId)) {
-      await member.roles.add(liveRoleId);
-      console.log(`✅ ${type} ${member.user.username} meni liveen!`);
+    await member.roles.add(this.liveRoleId);
+    console.log(`✅ ${type} ${member.user.username} meni liveen!`);
 
-      const rolePing = type === 'JUONTAJA'
-        ? '@everyone JUONTAJA PISTI LIVET TULILLE! 🔥'
-        : `🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!`;
-
-      await announceChannel.send(`${rolePing}\n📽️ https://twitch.tv/${twitchUsername}`);
-
-      const embed = new EmbedBuilder()
-        .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
-        .setAuthor({ name: `${member.user.username} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
-        .setTitle(streamData.title)
-        .setURL(`https://twitch.tv/${twitchUsername}`)
-        .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
-        .setTimestamp();
-
-      const msg = await announceChannel.send({ embeds: [embed] });
-      storage.liveMessages[member.id] = msg.id;
-      storage.save();
+    // Viesti-tekstit roolikohtaisesti
+    let messageText;
+    if (type === 'JUONTAJA') {
+      messageText = `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`;
+    } else {
+      messageText = `🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ https://twitch.tv/${twitchUsername}`;
     }
+
+    await announceChannel.send(messageText);
+
+    const embed = new EmbedBuilder()
+      .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
+      .setAuthor({ name: `${member.user.username} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
+      .setTitle(streamData.title)
+      .setURL(`https://twitch.tv/${twitchUsername}`)
+      .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
+      .setTimestamp();
+
+    const msg = await announceChannel.send({ embeds: [embed] });
+    storage.liveMessages[member.id] = msg.id;
+    storage.save();
   }
 
-  async removeLiveRole(member, liveRoleId, hostAnnounceChannel, contentAnnounceChannel) {
-    if (!member.roles.cache.has(liveRoleId)) return;
+  async removeLiveRole(member, ilmoituksetChannel, mainostusChannel) {
+    if (!member.roles.cache.has(this.liveRoleId)) return;
 
-    await member.roles.remove(liveRoleId);
+    await member.roles.remove(this.liveRoleId);
     console.log(`📴 ${member.user.tag} lopetti striimin → live-rooli poistettu.`);
 
-    const channels = [hostAnnounceChannel, contentAnnounceChannel];
+    const channels = [ilmoituksetChannel, mainostusChannel];
     for (const channel of channels) {
       if (channel && storage.liveMessages[member.id]) {
         try {
@@ -181,4 +175,4 @@ setInterval(async () => {
   } catch (err) {
     console.log('⚠️ Keep-alive ping epäonnistui:', err.message);
   }
-}, 1000 * 60 * 5); // 5 minuutin välein
+}, 1000 * 60 * 5);
