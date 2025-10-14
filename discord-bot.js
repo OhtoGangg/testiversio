@@ -50,9 +50,9 @@ export class DiscordBot {
   }
 
   startStreamMonitoring() {
-  const intervalSeconds = 10; // Kovakoodattu 10 sekuntia
-  console.log(`🕐 Aloitetaan striimien seuranta (${intervalSeconds}s välein)...`);
-  this.checkInterval = setInterval(() => this.checkAllStreamers(), intervalSeconds * 1000);
+    const intervalSeconds = 10; // Kovakoodattu 10 sekuntia
+    console.log(`🕐 Aloitetaan striimien seuranta (${intervalSeconds}s välein)...`);
+    this.checkInterval = setInterval(() => this.checkAllStreamers(), intervalSeconds * 1000);
   }
 
   async checkAllStreamers() {
@@ -123,20 +123,18 @@ export class DiscordBot {
     await member.roles.add(this.liveRoleId);
     console.log(`✅ ${type} ${member.user.username} meni liveen!`);
 
-    // Viesti-tekstit roolikohtaisesti
-    let messageText;
+    // Lähetä tekstiviesti vain JUONTAJALLE
     if (type === 'JUONTAJA') {
-      messageText = `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`;
-    } else {
-      messageText = `🚨 <@${member.id}> aloitti livelähetyksen jota et halua missata!\n📽️ https://twitch.tv/${twitchUsername}`;
+      const messageText = `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`;
+      await announceChannel.send(messageText);
     }
 
-    await announceChannel.send(messageText);
-
+    // Embed kaikille
     const embed = new EmbedBuilder()
       .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
       .setAuthor({ name: `${member.user.username} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
-      .setTitle(streamData.title)
+      .setTitle(type === 'JUONTAJA' ? streamData.title : 'LIVE JOTA ET HALUA MISSATA:') // SISÄLLÖNTUOTTAJA: uusi otsikko
+      .setDescription(type === 'SISÄLLÖNTUOTTAJA' ? streamData.title : '') // SISÄLLÖNTUOTTAJA: streamin title kuvauksena
       .setURL(`https://twitch.tv/${twitchUsername}`)
       .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
       .setTimestamp();
