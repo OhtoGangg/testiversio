@@ -50,8 +50,9 @@ export class DiscordBot {
   }
 
   startStreamMonitoring() {
-    console.log(`🕐 Aloitetaan striimien seuranta (${this.checkIntervalSeconds}s välein)...`);
-    this.checkInterval = setInterval(() => this.checkAllStreamers(), this.checkIntervalSeconds * 1000);
+  const intervalSeconds = 10; // Kovakoodattu 10 sekuntia
+  console.log(`🕐 Aloitetaan striimien seuranta (${intervalSeconds}s välein)...`);
+  this.checkInterval = setInterval(() => this.checkAllStreamers(), intervalSeconds * 1000);
   }
 
   async checkAllStreamers() {
