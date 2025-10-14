@@ -132,7 +132,7 @@ export class DiscordBot {
     // Embed kaikille
     const embed = new EmbedBuilder()
       .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
-      .setAuthor({ name: `${member.user.username} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
+      .setAuthor({ name: `${twitchUsername} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
       .setTitle(type === 'JUONTAJA' ? streamData.title : 'LIVE JOTA ET HALUA MISSATA:') // SISÄLLÖNTUOTTAJA: uusi otsikko
       .setDescription(type === 'SISÄLLÖNTUOTTAJA' ? streamData.title : '') // SISÄLLÖNTUOTTAJA: streamin title kuvauksena
       .setURL(`https://twitch.tv/${twitchUsername}`)
