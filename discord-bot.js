@@ -128,7 +128,7 @@ export class DiscordBot {
     if (type === 'JUONTAJA') {
       messageText = `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`;
     } else {
-      messageText = `🚨 ${member.user.username} aloitti livelähetyksen jota et halua missata!\n📽️ https://twitch.tv/${twitchUsername}`;
+      messageText = `🚨 <@${member.id}> aloitti livelähetyksen jota et halua missata!\n📽️ https://twitch.tv/${twitchUsername}`;
     }
 
     await announceChannel.send(messageText);
