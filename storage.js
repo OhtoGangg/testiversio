@@ -13,6 +13,8 @@ export const storage = {
     watchedRoleId: process.env.STRIIMAAJA_ROLE_ID,    // STRIIMAAJA-roolin ID
     liveRoleId: process.env.LIVE_ROLE_ID,             // LIVESSÄ-roolin ID
     announceChannelId: process.env.MAINOSTUS_CHANNEL_ID, // Mainoskanavan ID
+    hostRoleId: '1026641041396338710', // JUONTAJA-rooli (sinun oma)
+    hostAnnounceChannelId: '1026638924870856724', // kanava johon JUONTAJA-viesti menee (sama tai eri)
     checkIntervalSeconds: 60                           // Tarkistusväli sekunteina
   },
   liveMessages: storageData.liveMessages || {},       // Tallennetaan lähetetyt mainosviestit
