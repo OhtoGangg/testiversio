@@ -19,6 +19,9 @@ export class DiscordBot {
     this.twitchAPI = new TwitchAPI();
     this.checkInterval = null;
 
+    // Lue .env-muuttuja
+    this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID;
+
     this.client.on('ready', async () => {
       console.log(`✅ Logged in as ${this.client.user.tag}`);
       for (const guild of this.client.guilds.cache.values()) {
@@ -55,7 +58,7 @@ export class DiscordBot {
 
     const members = guild.members.cache.filter(m =>
       m.roles.cache.has(storage.botSettings.hostRoleId) ||
-      m.roles.cache.has('SISALLONTUOTTAJA_ROLE_ID')
+      m.roles.cache.has(this.contentCreatorRoleId)
     );
 
     console.log(`👥 Tarkkailtavia striimaajia: ${members.size}`);
@@ -109,7 +112,7 @@ export class DiscordBot {
       }
 
       const isHost = member.roles.cache.has(hostRoleId);
-      const isContentCreator = member.roles.cache.has('SISALLONTUOTTAJA_ROLE_ID');
+      const isContentCreator = member.roles.cache.has(this.contentCreatorRoleId);
 
       if (isHost) {
         await this.handleLivePost(member, twitchUsername, streamData, hostAnnounceChannel, liveRoleId, 'JUONTAJA');
