@@ -20,7 +20,7 @@ export class DiscordBot {
     this.checkInterval = null;
 
     // Lue .env-arvot
-    this.hostRoleId = process.env.HOST_ROLE_ID; // JUONTAJA-rooli
+    this.hostRoleId = process.env.JUONTAJA_ROLE_ID; // JUONTAJA-rooli
     this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID; // SISÄLLÖNTUOTTAJA-rooli
     this.liveRoleId = process.env.LIVE_ROLE_ID;
     this.ilmoituksetChannelId = process.env.ILMOITUKSET_CHANNEL_ID; // JUONTAJILLE
@@ -132,8 +132,8 @@ export class DiscordBot {
     // Embed kaikille
     const embed = new EmbedBuilder()
       .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
-      .setAuthor({ name: `${twitchUsername} on nyt LIVE!`, iconURL: member.user.displayAvatarURL() })
-      .setTitle(type === 'JUONTAJA' ? streamData.title : 'LIVE JOTA ET HALUA MISSATA:') // SISÄLLÖNTUOTTAJA: uusi otsikko
+      .setTitle(type === 'JUONTAJA' ? streamData.title : 'Live jota et halua missata:') // SISÄLLÖNTUOTTAJA: uusi otsikko
+      .setAuthor({ name: `${twitchUsername}`, iconURL: member.user.displayAvatarURL() })
       .setDescription(type === 'SISÄLLÖNTUOTTAJA' ? streamData.title : '') // SISÄLLÖNTUOTTAJA: streamin title kuvauksena
       .setURL(`https://twitch.tv/${twitchUsername}`)
       .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
