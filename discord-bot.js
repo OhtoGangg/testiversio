@@ -19,16 +19,16 @@ export class DiscordBot {
     this.twitchAPI = new TwitchAPI();
     this.checkInterval = null;
 
-    // Lue .env-arvot
-    this.hostRoleId = process.env.JUONTAJA_ROLE_ID; // JUONTAJA-rooli
-    this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID; // SISÄLLÖNTUOTTAJA-rooli
+    // 🔹 Lue .env-arvot
+    this.hostRoleId = process.env.JUONTAJA_ROLE_ID;
+    this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID;
     this.liveRoleId = process.env.LIVE_ROLE_ID;
-    this.ilmoituksetChannelId = process.env.ILMOITUKSET_CHANNEL_ID; // JUONTAJILLE
-    this.mainostusChannelId = process.env.MAINOSTUS_CHANNEL_ID; // SISÄLLÖNTUOTTAJILLE
+    this.ilmoituksetChannelId = process.env.ILMOITUKSET_CHANNEL_ID;
+    this.mainostusChannelId = process.env.MAINOSTUS_CHANNEL_ID;
     this.checkIntervalSeconds = parseInt(process.env.CHECK_INTERVAL_SECONDS || '60', 10);
 
     this.client.on('ready', async () => {
-      console.log(`✅ Logged in as ${this.client.user.tag}`);
+      console.log(`✅ Kirjauduttu sisään nimellä ${this.client.user.tag}`);
       for (const guild of this.client.guilds.cache.values()) {
         await guild.members.fetch({ withPresences: true });
       }
@@ -38,26 +38,26 @@ export class DiscordBot {
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
       const content = message.content.toLowerCase();
-      if (content === 'paska botti') await message.channel.send('Pidä turpas kiinni! 😤');
-      if (content === '!status') await message.channel.send('Botti toimii ja tarkkailee striimejä! 👀');
+      if (content === '!status') {
+        await message.channel.send('🟢 Botti toimii ja tarkkailee striimejä!');
+      }
     });
   }
 
   async initialize() {
     const token = process.env.DISCORD_BOT_TOKEN;
-    if (!token) throw new Error('DISCORD_BOT_TOKEN puuttuu');
+    if (!token) throw new Error('❌ DISCORD_BOT_TOKEN puuttuu .env-tiedostosta');
     await this.client.login(token);
   }
 
   startStreamMonitoring() {
-    const intervalSeconds = 10; // Kovakoodattu 10 sekuntia
-    console.log(`🕐 Aloitetaan striimien seuranta (${intervalSeconds}s välein)...`);
-    this.checkInterval = setInterval(() => this.checkAllStreamers(), intervalSeconds * 1000);
+    console.log(`🕐 Aloitetaan striimien seuranta (${this.checkIntervalSeconds}s välein)...`);
+    this.checkInterval = setInterval(() => this.checkAllStreamers(), this.checkIntervalSeconds * 1000);
   }
 
   async checkAllStreamers() {
     const guild = this.client.guilds.cache.first();
-    if (!guild) return console.log('⚠️ Ei löytynyt guildia');
+    if (!guild) return console.log('⚠️ Ei löytynyt guildia.');
 
     await guild.members.fetch({ withPresences: true });
 
@@ -71,8 +71,7 @@ export class DiscordBot {
       if (isLive) liveCount++;
     }
 
-    console.log(`📊 Nyt livenä: ${liveCount} / ${members.size} tarkkailtavaa.`);
-    console.log('✅ Tarkistus valmis.\n');
+    console.log(`📊 Tarkistettu ${members.size} jäsentä → ${liveCount} live-tilassa.\n`);
   }
 
   async checkMemberLiveStatus(member) {
@@ -86,13 +85,16 @@ export class DiscordBot {
       return false;
     }
 
-    const twitchActivity = presence.activities.find(act => act.type === 1 && act.url?.includes('twitch.tv'));
+    const twitchActivity = presence.activities.find(
+      act => act.type === 1 && act.url?.includes('twitch.tv')
+    );
     if (!twitchActivity) {
       await this.removeLiveRole(member, ilmoituksetChannel, mainostusChannel);
       return false;
     }
 
-    const twitchUsername = twitchActivity.url.split('/').pop()?.toLowerCase() || member.user.username.toLowerCase();
+    const twitchUsername =
+      twitchActivity.url.split('/').pop()?.toLowerCase() || member.user.username.toLowerCase();
 
     try {
       const streamData = await this.twitchAPI.getStreamData(twitchUsername);
@@ -102,16 +104,14 @@ export class DiscordBot {
       const isContentCreator = member.roles.cache.has(this.contentCreatorRoleId);
 
       if (isHost) {
-        console.log(`🎯 LIVE: JUONTAJA ${member.user.tag}`);
         await this.handleLivePost(member, twitchUsername, streamData, ilmoituksetChannel, 'JUONTAJA');
       } else if (isContentCreator) {
-        console.log(`🎯 LIVE: SISÄLLÖNTUOTTAJA ${member.user.tag}`);
         await this.handleLivePost(member, twitchUsername, streamData, mainostusChannel, 'SISÄLLÖNTUOTTAJA');
       }
 
       return true;
     } catch (err) {
-      console.log(`⚠️ Twitch API virhe ${member.user.tag}: ${err.message}`);
+      console.log(`⚠️ Twitch API virhe käyttäjälle ${member.user.tag}: ${err.message}`);
       return false;
     }
   }
@@ -123,18 +123,19 @@ export class DiscordBot {
     await member.roles.add(this.liveRoleId);
     console.log(`✅ ${type} ${member.user.username} meni liveen!`);
 
-    // Lähetä tekstiviesti vain JUONTAJALLE
+    // 🔹 JUONTAJA saa erillisen tekstiviestin
     if (type === 'JUONTAJA') {
-      const messageText = `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`;
-      await announceChannel.send(messageText);
+      await announceChannel.send(
+        `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`
+      );
     }
 
-    // Embed kaikille
+    // 🔹 Embed kaikille
     const embed = new EmbedBuilder()
       .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
-      .setTitle(type === 'JUONTAJA' ? streamData.title : 'Live jota et halua missata:') // SISÄLLÖNTUOTTAJA: uusi otsikko
-      .setAuthor({ name: `${twitchUsername}`, iconURL: member.user.displayAvatarURL() })
-      .setDescription(type === 'SISÄLLÖNTUOTTAJA' ? streamData.title : '') // SISÄLLÖNTUOTTAJA: streamin title kuvauksena
+      .setTitle(type === 'JUONTAJA' ? streamData.title : 'LIVE JOTA ET HALUA MISSATA:')
+      .setAuthor({ name: twitchUsername, iconURL: member.user.displayAvatarURL() })
+      .setDescription(type === 'SISÄLLÖNTUOTTAJA' ? streamData.title : '')
       .setURL(`https://twitch.tv/${twitchUsername}`)
       .setImage(streamData.thumbnail_url.replace('{width}', '1280').replace('{height}', '720'))
       .setTimestamp();
