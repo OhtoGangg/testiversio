@@ -10,17 +10,25 @@ try {
 // Kaikki ID:t ja tokenit luetaan environment-muuttujista
 export const storage = {
   botSettings: {
-    watchedRoleId: process.env.SISALLONTUOTTAJA_ROLE_ID,    // STRIIMAAJA-roolin ID
-    liveRoleId: process.env.LIVE_ROLE_ID,             // LIVESSÄ-roolin ID
-    announceChannelId: process.env.MAINOSTUS_CHANNEL_ID, // Mainoskanavan ID
-    hostRoleId: '1026641041396338710', // JUONTAJA-rooli (sinun oma)
-    hostAnnounceChannelId: '1026638924870856724', // kanava johon JUONTAJA-viesti menee (sama tai eri)
-    checkIntervalSeconds: 60                           // Tarkistusväli sekunteina
-  },
-  liveMessages: storageData.liveMessages || {},       // Tallennetaan lähetetyt mainosviestit
-  streamers: storageData.streamers || {},             // Discord ID → Twitch username
+    // 🔹 SISÄLLÖNTUOTTAJAT
+    watchedRoleId: process.env.SISALLONTUOTTAJA_ROLE_ID,  // SISÄLLÖNTUOTTAJA-roolin ID
+    announceChannelId: process.env.MAINOSTUS_CHANNEL_ID,  // Mainoskanava
 
-  getBotSettings() { return this.botSettings; },
+    // 🔹 JUONTAJAT
+    hostRoleId: process.env.JUONTAJA_ROLE_ID,             // JUONTAJA-roolin ID
+    hostAnnounceChannelId: process.env.ILMOITUKSET_CHANNEL_ID, // Ilmoitukset-kanava
+
+    // 🔹 Yleiset
+    liveRoleId: process.env.LIVE_ROLE_ID,                 // LIVESSÄ-roolin ID
+    checkIntervalSeconds: Number(process.env.CHECK_INTERVAL_SECONDS) || 60
+  },
+
+  liveMessages: storageData.liveMessages || {},           // Tallennetaan lähetetyt mainosviestit
+  streamers: storageData.streamers || {},                 // Discord ID → Twitch username
+
+  getBotSettings() { 
+    return this.botSettings; 
+  },
 
   async getStreamer(id) { 
     return this.streamers[id] || null; 
@@ -38,6 +46,7 @@ export const storage = {
   },
 
   save() { 
-    fs.writeFileSync(storageFile, JSON.stringify({ ...this }, null, 2)); 
+    const { liveMessages, streamers } = this;
+    fs.writeFileSync(storageFile, JSON.stringify({ liveMessages, streamers }, null, 2)); 
   }
 };
