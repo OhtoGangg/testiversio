@@ -23,8 +23,8 @@ export class DiscordBot {
     this.hostRoleId = process.env.JUONTAJA_ROLE_ID;
     this.contentCreatorRoleId = process.env.SISALLONTUOTTAJA_ROLE_ID;
     this.liveRoleId = process.env.LIVE_ROLE_ID;
-    this.ilmoituksetChannelId = process.env.ILMOITUKSET_CHANNEL_ID;
-    this.mainostusChannelId = process.env.MAINOSTUS_CHANNEL_ID;
+    this.hostAnnounceChannelId = process.env.ILMOITUKSET_CHANNEL_ID;
+    this.contentAnnounceChannelId = process.env.MAINOSTUS_CHANNEL_ID;
     this.checkIntervalSeconds = parseInt(process.env.CHECK_INTERVAL_SECONDS || '60', 10);
 
     this.client.on('ready', async () => {
@@ -76,12 +76,12 @@ export class DiscordBot {
 
   async checkMemberLiveStatus(member) {
     const guild = member.guild;
-    const ilmoituksetChannel = guild.channels.cache.get(this.ilmoituksetChannelId);
-    const mainostusChannel = guild.channels.cache.get(this.mainostusChannelId);
+    const hostChannel = guild.channels.cache.get(this.hostAnnounceChannelId);
+    const contentChannel = guild.channels.cache.get(this.contentAnnounceChannelId);
     const presence = member.presence;
 
     if (!presence || !presence.activities?.length) {
-      await this.removeLiveRole(member, ilmoituksetChannel, mainostusChannel);
+      await this.removeLiveRole(member, hostChannel, contentChannel);
       return false;
     }
 
@@ -89,7 +89,7 @@ export class DiscordBot {
       act => act.type === 1 && act.url?.includes('twitch.tv')
     );
     if (!twitchActivity) {
-      await this.removeLiveRole(member, ilmoituksetChannel, mainostusChannel);
+      await this.removeLiveRole(member, hostChannel, contentChannel);
       return false;
     }
 
@@ -104,9 +104,9 @@ export class DiscordBot {
       const isContentCreator = member.roles.cache.has(this.contentCreatorRoleId);
 
       if (isHost) {
-        await this.handleLivePost(member, twitchUsername, streamData, ilmoituksetChannel, 'JUONTAJA');
+        await this.handleLivePost(member, twitchUsername, streamData, hostChannel, 'JUONTAJA');
       } else if (isContentCreator) {
-        await this.handleLivePost(member, twitchUsername, streamData, mainostusChannel, 'SISÄLLÖNTUOTTAJA');
+        await this.handleLivePost(member, twitchUsername, streamData, contentChannel, 'SISÄLLÖNTUOTTAJA');
       }
 
       return true;
@@ -117,20 +117,21 @@ export class DiscordBot {
   }
 
   async handleLivePost(member, twitchUsername, streamData, announceChannel, type) {
-    if (!announceChannel) return;
+    if (!announceChannel) {
+      console.log(`⚠️ ${type}-kanavaa ei löytynyt!`);
+      return;
+    }
     if (member.roles.cache.has(this.liveRoleId)) return;
 
     await member.roles.add(this.liveRoleId);
     console.log(`✅ ${type} ${member.user.username} meni liveen!`);
 
-    // 🔹 JUONTAJA saa erillisen tekstiviestin
     if (type === 'JUONTAJA') {
       await announceChannel.send(
         `@everyone JUONTAJA PISTI LIVET TULILLE! 🔥\n📽️ https://twitch.tv/${twitchUsername}`
       );
     }
 
-    // 🔹 Embed kaikille
     const embed = new EmbedBuilder()
       .setColor(type === 'JUONTAJA' ? '#ff0050' : '#9146FF')
       .setTitle(type === 'JUONTAJA' ? streamData.title : 'LIVE JOTA ET HALUA MISSATA:')
@@ -143,15 +144,18 @@ export class DiscordBot {
     const msg = await announceChannel.send({ embeds: [embed] });
     storage.liveMessages[member.id] = msg.id;
     storage.save();
+
+    // 📢 Lisätty lokitus
+    console.log(`📢 Lähetettiin ilmoitus ${type}-kanavalle (${announceChannel.name}) käyttäjältä ${member.user.username}`);
   }
 
-  async removeLiveRole(member, ilmoituksetChannel, mainostusChannel) {
+  async removeLiveRole(member, hostChannel, contentChannel) {
     if (!member.roles.cache.has(this.liveRoleId)) return;
 
     await member.roles.remove(this.liveRoleId);
     console.log(`📴 ${member.user.tag} lopetti striimin → live-rooli poistettu.`);
 
-    const channels = [ilmoituksetChannel, mainostusChannel];
+    const channels = [hostChannel, contentChannel];
     for (const channel of channels) {
       if (channel && storage.liveMessages[member.id]) {
         try {
